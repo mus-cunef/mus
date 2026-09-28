@@ -17,6 +17,8 @@ ENVIDO_MIN = 3
 ENVIDO_MAX = 40
 REENVIDO_MIN = 2
 REENVIDO_MAX = 40
+#: Máximo del total de una apuesta (envite más reenvidos).
+APUESTA_MAX = 40
 
 
 class IllegalActionError(Exception):
@@ -77,7 +79,7 @@ class Envido(Action):
 
 @dataclass(frozen=True)
 class Reenvido(Action):
-    """Subir la apuesta del rival ``tantos`` más (entre 2 y 40)."""
+    """Subir la apuesta del rival ``tantos`` más (al menos 2, sin que el total pase de 40)."""
 
     tantos: int
 

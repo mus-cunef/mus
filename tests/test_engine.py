@@ -119,7 +119,8 @@ def test_acciones_ante_un_envite():
     assert s.turno == 1
     legales = legal_actions(s)
     assert Quiero() in legales and NoQuiero() in legales and Ordago() in legales
-    assert Reenvido(2) in legales and Reenvido(40) in legales and Reenvido(1) not in legales
+    assert Reenvido(2) in legales and Reenvido(38) in legales  # 2 + 38 = 40
+    assert Reenvido(1) not in legales and Reenvido(39) not in legales
     assert Paso() not in legales and Envido() not in legales
 
 
@@ -155,6 +156,23 @@ def test_basta_con_que_uno_quiera():
     s = jugar(preparar(), Envido(), NoQuiero(), Quiero())
     assert s.resultados[-1].tipo is TipoResultado.QUERIDO
     assert s.resultados[-1].apuesta == 2
+
+
+def test_el_total_de_la_apuesta_no_pasa_de_40():
+    s = jugar(preparar(), Envido(30))
+    legales = legal_actions(s)
+    assert Reenvido(10) in legales and Reenvido(11) not in legales
+    s = jugar(s, Reenvido(10))
+    assert s.apuesta.tantos == 40
+    assert not any(isinstance(a, Reenvido) for a in legal_actions(s))
+    assert Ordago() in legal_actions(s)
+
+
+def test_sin_sitio_para_un_reenvido_de_2():
+    s = jugar(preparar(), Envido(39))
+    assert not any(isinstance(a, Reenvido) for a in legal_actions(s))
+    with pytest.raises(IllegalActionError):
+        apply(s, Reenvido(2))
 
 
 def test_reenvido_no_querido_cobra_la_apuesta_anterior():

@@ -8,7 +8,6 @@ from musarena.actions import (
     ENVIDO_MAX,
     ENVIDO_MIN,
     ENVIDO_POR_DEFECTO,
-    REENVIDO_MAX,
     REENVIDO_MIN,
     Action,
     Descarte,
@@ -23,6 +22,11 @@ from musarena.state import Fase, nombre_pareja
 _ENVIDO_N = "envido_n"
 _REENVIDO_N = "reenvido_n"
 _DESCARTE = "descarte"
+
+
+def _maximo_reenvido(legal_actions: Sequence[Action]) -> int:
+    """Mayor reenvido legal: depende de lo apostado, porque el total no puede pasar de 40."""
+    return max(a.tantos for a in legal_actions if isinstance(a, Reenvido))
 
 
 class HumanTerminalPlayer(Player):
@@ -75,8 +79,9 @@ class HumanTerminalPlayer(Player):
                 return Envido(self._pedir_cantidad("¿Cuántos tantos envidas?", ENVIDO_MIN,
                                                    ENVIDO_MAX))
             if eleccion == _REENVIDO_N:
+                maximo = _maximo_reenvido(legal_actions)
                 return Reenvido(self._pedir_cantidad("¿Cuántos tantos más?", REENVIDO_MIN,
-                                                     REENVIDO_MAX))
+                                                     maximo))
             return eleccion
 
     def on_hand_end(self, observation: Observation) -> None:
@@ -211,7 +216,8 @@ class HumanTerminalPlayer(Player):
                 opciones.append((f"Envido ({ENVIDO_POR_DEFECTO} tantos)", accion))
             elif isinstance(accion, Reenvido):
                 if not any(o[1] == _REENVIDO_N for o in opciones):
-                    opciones.append((f"Reenvido N ({REENVIDO_MIN}-{REENVIDO_MAX})", _REENVIDO_N))
+                    maximo = _maximo_reenvido(legal_actions)
+                    opciones.append((f"Reenvido N ({REENVIDO_MIN}-{maximo})", _REENVIDO_N))
             else:
                 opciones.append((str(accion), accion))
         return opciones

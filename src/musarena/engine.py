@@ -17,6 +17,7 @@ import random
 from itertools import combinations
 
 from musarena.actions import (
+    APUESTA_MAX,
     ENVIDO_MAX,
     ENVIDO_POR_DEFECTO,
     REENVIDO_MAX,
@@ -111,7 +112,9 @@ def legal_actions(state: State) -> list[Action]:
         return [Paso(), *envites, Ordago()]
     respuestas: list[Action] = [Quiero(), NoQuiero()]
     if not apuesta.ordago:
-        respuestas += [Reenvido(n) for n in range(REENVIDO_MIN, REENVIDO_MAX + 1)]
+        # El total apostado no puede pasar de 40 tantos.
+        maximo = min(REENVIDO_MAX, APUESTA_MAX - apuesta.tantos)
+        respuestas += [Reenvido(n) for n in range(REENVIDO_MIN, maximo + 1)]
         respuestas.append(Ordago())
     return respuestas
 

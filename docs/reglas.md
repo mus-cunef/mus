@@ -92,7 +92,9 @@ Aclaraciones:
 - Los tantos de un **no quiero** se cobran **en el momento**. Si con ellos una pareja llega a 40,
   gana la vaca y la mano termina.
 - A un **órdago** solo se puede responder **quiero** o **no quiero** (no se reenvida sobre él).
-- Todas las apuestas se hacen con tantos enteros; no hay límite al total de una apuesta.
+- Todas las apuestas se hacen con tantos enteros y el **total** de una apuesta no puede pasar de
+  **40**: un reenvido solo puede subir hasta 40 menos lo que ya hay apostado. Si no cabe ni un
+  reenvido de 2, solo se puede responder quiero, no quiero u órdago.
 
 ## 6. Recuento al final de la mano
 

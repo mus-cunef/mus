@@ -64,6 +64,14 @@ def test_menu_de_respuesta():
     assert _elegir(s, ["3", "1", "2"])[0] == Reenvido(2)
 
 
+def test_reenvido_limitado_por_el_total_de_40():
+    s = apply(_en_grande(), Envido(35))
+    accion, salida = _elegir(s, ["3", "6", "5"])
+    assert accion == Reenvido(5)
+    assert any("Reenvido N (2-5)" in linea for linea in salida)
+    assert any("entre 2 y 5" in linea for linea in salida)
+
+
 def test_descarte_por_numeros():
     s = nueva_partida(seed=1)
     for _ in range(4):
