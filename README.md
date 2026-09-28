@@ -39,7 +39,8 @@ Por eso cada jugador solo recibe **su observación**, nunca el estado completo d
 - La partida se juega **al mejor de 3 vacas** o **al mejor de 5 vacas**.
 - **Chat abierto**: todos los jugadores de la mesa pueden escribir y leer mensajes.
 
-Las reglas detalladas (8 reyes, señas, desempates por mano…) estarán en [`docs/reglas.md`](docs/reglas.md).
+Las reglas detalladas (8 reyes, desempates por mano, apuestas, recuento…) están en
+[`docs/reglas.md`](docs/reglas.md).
 
 ## Tipos de jugador
 
@@ -60,6 +61,7 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
 pytest
+mus-play        # partida en la terminal (4 humanos en la misma pantalla)
 ```
 
 ## Estructura
@@ -82,8 +84,8 @@ docs/             documentación
 ## Equipo
 
 - Pablo Noelle
-- Compañero 2
-- Compañero 3
+- Sara Trapero
+- Ines Perales
 
 ## Licencia
 
