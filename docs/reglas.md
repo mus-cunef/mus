@@ -9,7 +9,8 @@ después en el código y los tests.
   la pareja B los asientos `1` y `3` (los compañeros se sientan enfrente).
 - El orden de turno es `0 → 1 → 2 → 3 → 0…` (sentido antihorario de la mesa real).
 - **Mano**: el jugador que habla primero en cada mano. Es el siguiente al que reparte.
-  Al terminar cada mano, la mano pasa al siguiente asiento.
+  Al terminar cada mano, la mano pasa al siguiente asiento. La primera mano de la partida es el
+  asiento `0`, y la rotación continúa de una vaca a la siguiente.
 - Cada asiento puede ocuparlo un **humano** o un **bot**; el motor no distingue entre ellos.
 
 ## 2. Baraja
@@ -41,6 +42,7 @@ Igual que la grande pero al revés: gana la mano más baja comparando de menor a
 
 ### Pares
 - Antes de apostar, cada jugador declara, en orden, si **tiene pares o no** (es obligatorio decir la verdad).
+  Como no se puede mentir, el motor hace la declaración automáticamente y la deja en el historial público.
 - Jugadas, de menor a mayor:
   - **Par**: 2 cartas iguales.
   - **Medias**: 3 cartas iguales.
@@ -81,6 +83,17 @@ En cada lance hablan los jugadores por orden desde la mano. Las acciones son:
 - **Órdago aceptado**: se muestran las cartas inmediatamente; quien gane ese lance gana **la vaca**
   y la mano termina.
 
+Aclaraciones:
+
+- En **pares** y **juego** solo hablan (apuestan y responden) los jugadores que **tienen** la jugada.
+  En grande, chica y punto hablan los cuatro.
+- Ante una apuesta, responde primero el rival **más cercano a la mano**; si dice "no quiero", habla
+  su compañero.
+- Los tantos de un **no quiero** se cobran **en el momento**. Si con ellos una pareja llega a 40,
+  gana la vaca y la mano termina.
+- A un **órdago** solo se puede responder **quiero** o **no quiero** (no se reenvida sobre él).
+- Todas las apuestas se hacen con tantos enteros; no hay límite al total de una apuesta.
+
 ## 6. Recuento al final de la mano
 
 Se cuenta en orden **Grande → Chica → Pares → Juego/Punto**:
@@ -93,6 +106,17 @@ Se cuenta en orden **Grande → Chica → Pares → Juego/Punto**:
 - **Punto**: la apuesta aceptada **más** 1 tanto.
 
 Si una pareja llega a **40** durante el recuento, gana la vaca en ese momento y no se sigue contando.
+
+Aclaraciones:
+
+- **En paso** (todos pasan): en grande y chica el ganador del lance cobra **1 tanto**; en pares y
+  juego **no** hay tanto extra, solo los valores de pares o de juego de la pareja ganadora; en punto,
+  el tanto del punto.
+- **Sin apuesta** (en pares o juego solo una pareja tiene la jugada): esa pareja cobra sus valores
+  de pares o de juego.
+- **No quiero**: además del tanto (o la apuesta anterior) cobrado en el momento, en pares, juego y
+  punto la pareja que envidó cobra en el recuento los valores de **sus** jugadas (sus pares, su juego
+  o el tanto del punto), sin compararlas con las del rival.
 
 ## 7. Vacas y partida
 
@@ -110,5 +134,5 @@ Si una pareja llega a **40** durante el recuento, gana la vaca en ese momento y 
 ## 9. Información oculta
 
 - Cada jugador solo ve **sus propias cartas**, nunca las de los rivales **ni las de su compañero**.
-- Las cartas de los demás solo se revelan al final de la mano (o tras un órdago aceptado), y solo
-  las necesarias para el recuento.
+- Las cartas de los demás solo se revelan al final de la mano (o tras un órdago aceptado). Al final
+  de **cada** mano los cuatro jugadores enseñan sus cartas.
