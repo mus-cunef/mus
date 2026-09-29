@@ -1,7 +1,7 @@
 import random
 from collections import Counter
 
-from musarena.cards import Baraja, Carta, Palo, todas_las_cartas
+from musarena.cards import Baraja, Carta, Palo, ordenar_cartas, todas_las_cartas
 
 
 def test_baraja_tiene_40_cartas_distintas():
@@ -27,6 +27,20 @@ def test_nombres_de_cartas():
     assert str(Carta(11, Palo.COPAS)) == "Caballo de copas"
     assert str(Carta(10, Palo.ESPADAS)) == "Sota de espadas"
     assert str(Carta(1, Palo.BASTOS)) == "As de bastos"
+
+
+def test_ordenar_de_mayor_a_menor_segun_la_grande():
+    cartas = [
+        Carta(1, Palo.OROS), Carta(3, Palo.COPAS), Carta(7, Palo.OROS), Carta(12, Palo.BASTOS),
+        Carta(2, Palo.ESPADAS), Carta(11, Palo.OROS), Carta(10, Palo.COPAS), Carta(4, Palo.OROS),
+    ]
+    assert [c.numero for c in ordenar_cartas(cartas)] == [12, 3, 11, 10, 7, 4, 2, 1]
+
+
+def test_ordenar_cartas_iguales_por_palo():
+    reyes = [Carta(12, Palo.BASTOS), Carta(12, Palo.OROS), Carta(3, Palo.COPAS)]
+    assert ordenar_cartas(reyes) == [Carta(12, Palo.OROS), Carta(12, Palo.BASTOS),
+                                     Carta(3, Palo.COPAS)]
 
 
 def test_barajar_es_reproducible_con_semilla():

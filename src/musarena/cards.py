@@ -71,6 +71,18 @@ class Carta:
         return f"{self.nombre} de {self.palo.value}"
 
 
+_ORDEN_PALOS = {palo: i for i, palo in enumerate(Palo)}
+
+
+def ordenar_cartas(cartas: list[Carta]) -> list[Carta]:
+    """Ordena de mayor a menor según la grande.
+
+    Con el mismo valor va primero el número mayor: el 12 antes que el 3 (ambos reyes) y el 2 antes
+    que el as. Si coincide también el número, se ordena por palo para que el orden sea fijo.
+    """
+    return sorted(cartas, key=lambda c: (-c.rango, -c.numero, _ORDEN_PALOS[c.palo]))
+
+
 def todas_las_cartas() -> list[Carta]:
     """Las 40 cartas de la baraja, en orden fijo (palo y número)."""
     return [Carta(numero, palo) for palo in Palo for numero in NUMEROS]

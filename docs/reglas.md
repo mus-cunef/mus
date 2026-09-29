@@ -23,7 +23,9 @@ después en el código y los tests.
 
 ## 3. Reparto y fase de mus
 
-1. Se barajan las 40 cartas y se reparten **4 cartas** a cada jugador.
+1. Se barajan las 40 cartas y se reparten **4 cartas** a cada jugador. Cada jugador ve sus cartas
+   **ordenadas de mayor a menor** según la grande; entre cartas del mismo valor va primero el 12
+   antes que el 3, y el 2 antes que el as.
 2. Empezando por la mano, cada jugador dice **"mus"** o **"no hay mus"** (cortar).
 3. Si **los cuatro** dicen mus, cada jugador descarta **de 1 a 4 cartas** y roba otras tantas.
    Se vuelve al paso 2.

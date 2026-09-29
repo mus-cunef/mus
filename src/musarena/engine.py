@@ -34,7 +34,7 @@ from musarena.actions import (
     Quiero,
     Reenvido,
 )
-from musarena.cards import Baraja
+from musarena.cards import Baraja, ordenar_cartas
 from musarena.hands import (
     Lance,
     bonus_juego,
@@ -152,7 +152,7 @@ def _repartir(s: State) -> None:
     s.baraja = Baraja(s.rng)
     s.cartas = [[], [], [], []]
     for asiento in orden_desde_mano(s.mano):
-        s.cartas[asiento] = s.baraja.robar(4)
+        s.cartas[asiento] = ordenar_cartas(s.baraja.robar(4))
     s.fase = Fase.MUS
     s.turno = s.mano
     s.mus_pedidos = 0
@@ -190,7 +190,7 @@ def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     se_queda = [c for c in s.cartas[asiento] if c not in action.cartas]
     # Primero se roba y después se añaden los descartes propios a la pila, para que nadie
     # pueda volver a recibir las cartas que acaba de tirar.
-    s.cartas[asiento] = se_queda + s.baraja.robar(len(descartadas))
+    s.cartas[asiento] = ordenar_cartas(se_queda + s.baraja.robar(len(descartadas)))
     s.baraja.descartar(descartadas)
     n = len(descartadas)
     s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
