@@ -15,8 +15,10 @@ acciones legales, y devuelve una de ellas.
 
 from __future__ import annotations
 
+import random
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from typing import ClassVar
 
 from musarena.actions import Action
 from musarena.chat import CanalChat
@@ -50,3 +52,18 @@ class Player(ABC):
 
     def on_game_end(self, observation: Observation) -> None:  # noqa: B027
         """Aviso opcional al terminar la partida."""
+
+
+class Bot(Player):
+    """Base de los bots: un generador aleatorio propio (reproducible con ``seed``) y metadatos.
+
+    ``tipo`` es el nombre con el que se crea desde el registro (``crear_jugador("reglas")``),
+    y lo usarán la web y los torneos para las clasificaciones.
+    """
+
+    tipo: ClassVar[str] = "bot"
+    descripcion: ClassVar[str] = ""
+
+    def __init__(self, nombre: str | None = None, seed: int | None = None) -> None:
+        super().__init__(nombre)
+        self.rng = random.Random(seed)

@@ -5,12 +5,13 @@ después en el código y los tests.
 
 ## 1. Mesa y jugadores
 
-- **4 jugadores** en **2 parejas**. Asientos `0, 1, 2, 3`; la pareja A son los asientos `0` y `2`,
-  la pareja B los asientos `1` y `3` (los compañeros se sientan enfrente).
-- El orden de turno es `0 → 1 → 2 → 3 → 0…` (sentido antihorario de la mesa real).
+- **4 jugadores** en **2 parejas**: **Jugador 1, 2, 3 y 4**. La pareja A son los jugadores 1 y 3,
+  la pareja B los jugadores 2 y 4 (los compañeros se sientan enfrente).
+  En el código los asientos se numeran `0-3`: el Jugador N ocupa el asiento `N-1`.
+- El orden de turno es `1 → 2 → 3 → 4 → 1…` (sentido antihorario de la mesa real).
 - **Mano**: el jugador que habla primero en cada mano. Es el siguiente al que reparte.
-  Al terminar cada mano, la mano pasa al siguiente asiento. La primera mano de la partida es el
-  asiento `0`, y la rotación continúa de una vaca a la siguiente.
+  Al terminar cada mano, la mano pasa al siguiente jugador. La primera mano de la partida es el
+  **Jugador 1**, y la rotación continúa de una vaca a la siguiente.
 - Cada asiento puede ocuparlo un **humano** o un **bot**; el motor no distingue entre ellos.
 
 ## 2. Baraja
@@ -22,7 +23,9 @@ después en el código y los tests.
 
 ## 3. Reparto y fase de mus
 
-1. Se barajan las 40 cartas y se reparten **4 cartas** a cada jugador.
+1. Se barajan las 40 cartas y se reparten **4 cartas** a cada jugador. Cada jugador ve sus cartas
+   **ordenadas de mayor a menor** según la grande; entre cartas del mismo valor va primero el 12
+   antes que el 3, y el 2 antes que el as.
 2. Empezando por la mano, cada jugador dice **"mus"** o **"no hay mus"** (cortar).
 3. Si **los cuatro** dicen mus, cada jugador descarta **de 1 a 4 cartas** y roba otras tantas.
    Se vuelve al paso 2.

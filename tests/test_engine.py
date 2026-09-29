@@ -13,6 +13,7 @@ from musarena.actions import (
     Quiero,
     Reenvido,
 )
+from musarena.cards import ordenar_cartas
 from musarena.engine import apply, legal_actions, nueva_partida, vacas_para_ganar
 from musarena.hands import Lance
 from musarena.state import Fase, TipoResultado
@@ -67,6 +68,15 @@ def test_reparto_inicial():
     assert all(len(c) == 4 for c in s.cartas)
     assert len(set(todas)) == 16
     assert len(s.baraja.mazo) == 24
+
+
+def test_las_manos_se_reparten_y_se_reponen_ordenadas():
+    s = nueva_partida(seed=9)
+    assert all(c == ordenar_cartas(c) for c in s.cartas)
+    s = jugar(s, Mus(), Mus(), Mus(), Mus())
+    for _ in range(4):
+        s = apply(s, Descarte(frozenset(s.cartas[s.turno][:2])))
+        assert all(c == ordenar_cartas(c) for c in s.cartas)
 
 
 def test_misma_semilla_mismo_reparto():

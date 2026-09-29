@@ -1,4 +1,12 @@
-"""Comando ``mus-play``: partida de mus en la terminal con los cuatro asientos humanos."""
+"""Comando ``mus-play``: partida de mus en la terminal, con humanos y bots en cualquier asiento.
+
+Ejemplos::
+
+    mus-play                                     # pregunta quién juega en cada asiento
+    mus-play --jugadores humano,reglas,reglas,reglas
+    mus-play --jugadores humano,reglas:agresivo,reglas,reglas:conservador
+    mus-play --jugadores reglas,random,reglas,random --mejor-de 5    # solo bots, a mirar
+"""
 
 from __future__ import annotations
 
@@ -6,8 +14,10 @@ import argparse
 from collections.abc import Callable, Sequence
 
 from musarena.match import Match
-from musarena.players import HumanTerminalPlayer
-from musarena.state import nombre_pareja
+from musarena.player import Player
+from musarena.players import OPCIONES, HumanTerminalPlayer, crear_jugador, es_tipo_valido
+from musarena.players.human_terminal import lineas_resumen
+from musarena.state import nombre_jugador, nombre_pareja
 
 
 def preguntar_mejor_de(entrada: Callable[[str], str] = input) -> int:
@@ -19,26 +29,74 @@ def preguntar_mejor_de(entrada: Callable[[str], str] = input) -> int:
         print("Responde 3 o 5.")
 
 
+def preguntar_jugadores(entrada: Callable[[str], str] = input) -> list[str]:
+    """Pregunta qué tipo de jugador ocupa cada asiento (por defecto, humano)."""
+    print(f"¿Quién juega en cada asiento? Opciones: {', '.join(OPCIONES)}.")
+    tipos = []
+    for asiento in range(4):
+        while True:
+            respuesta = entrada(f"  {nombre_jugador(asiento)} [humano]: ").strip().lower()
+            respuesta = respuesta or "humano"
+            if es_tipo_valido(respuesta):
+                tipos.append(respuesta)
+                break
+            print(f"  Escribe una de estas opciones: {', '.join(OPCIONES)}.")
+    return tipos
+
+
+def crear_mesa(tipos: Sequence[str], seed: int | None = None) -> list[Player]:
+    """Crea los cuatro jugadores. Si hay varios humanos, se avisa de cada turno y se hace pausa."""
+    if len(tipos) != 4:
+        raise ValueError("Hacen falta 4 jugadores")
+    humanos = [a for a, t in enumerate(tipos) if t == "humano"]
+    jugadores: list[Player] = []
+    for asiento, tipo in enumerate(tipos):
+        nombre = nombre_jugador(asiento)
+        if tipo == "humano":
+            jugadores.append(HumanTerminalPlayer(
+                nombre=nombre,
+                pausa_entre_turnos=len(humanos) > 1,
+                mostrar_resumenes=asiento == humanos[0],  # un solo resumen por mano
+            ))
+        else:
+            semilla = None if seed is None else seed * 4 + asiento
+            jugadores.append(crear_jugador(tipo, nombre=f"{nombre} ({tipo})", seed=semilla))
+    return jugadores
+
+
+def jugar(match: Match, hay_humanos: bool) -> int:
+    """Juega la partida. Si solo hay bots, enseña el resumen de cada mano para poder seguirla."""
+    if hay_humanos:
+        return match.play()
+    while not match.terminada:
+        manos = len(match.state.manos_jugadas)
+        match.step()
+        if len(match.state.manos_jugadas) > manos:
+            for linea in lineas_resumen(match.state.manos_jugadas[-1], tuple(match.state.vacas)):
+                print(linea)
+    return match.ganador
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mus-play", description="Juega al mus en la terminal.")
     parser.add_argument("--mejor-de", type=int, choices=(3, 5), help="vacas de la partida")
-    parser.add_argument("--seed", type=int, default=None, help="semilla para repetir el reparto")
+    parser.add_argument("--jugadores", help=f"4 tipos separados por comas ({', '.join(OPCIONES)})")
+    parser.add_argument("--seed", type=int, default=None, help="semilla para repetir la partida")
     args = parser.parse_args(argv)
 
-    print("Mus Arena · 4 jugadores, parejas A (asientos 0 y 2) contra B (asientos 1 y 3).")
+    tipos = None
+    if args.jugadores:
+        tipos = [t.strip().lower() for t in args.jugadores.split(",")]
+        if len(tipos) != 4 or not all(es_tipo_valido(t) for t in tipos):
+            parser.error(f"--jugadores necesita 4 tipos de entre: {', '.join(OPCIONES)}")
+
+    print("Mus Arena · 4 jugadores, pareja A (jugadores 1 y 3) contra B (jugadores 2 y 4).")
     print("En cualquier momento puedes escribir '/chat mensaje' para hablar con la mesa.")
     try:
         mejor_de = args.mejor_de or preguntar_mejor_de()
-        jugadores = [
-            HumanTerminalPlayer(
-                nombre=f"Jugador {asiento}",
-                pausa_entre_turnos=True,
-                mostrar_resumenes=(asiento == 0),  # un solo resumen por mano en la pantalla
-            )
-            for asiento in range(4)
-        ]
-        match = Match(jugadores, mejor_de=mejor_de, seed=args.seed)
-        ganador = match.play()
+        tipos = tipos or preguntar_jugadores()
+        match = Match(crear_mesa(tipos, args.seed), mejor_de=mejor_de, seed=args.seed)
+        ganador = jugar(match, hay_humanos="humano" in tipos)
     except (KeyboardInterrupt, EOFError):
         print("\nPartida interrumpida.")
         return 1

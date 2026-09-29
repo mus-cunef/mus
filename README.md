@@ -44,13 +44,15 @@ Las reglas detalladas (8 reyes, desempates por mano, apuestas, recuento…) est�
 
 ## Tipos de jugador
 
-| Jugador  | Descripción                                            |
-| -------- | ------------------------------------------------------ |
-| `humano` | Juega una persona desde la web o la terminal           |
-| `random` | Elige una jugada legal al azar                         |
-| `reglas` | Juega según heurísticas (envida con buenas cartas)     |
-| `experto`| Estima probabilidades de las cartas ocultas            |
-| `aprende`| Aprende jugando contra sí mismo, incluidos los faroles |
+| Jugador       | Descripción                                                        | Estado        |
+| ------------- | ------------------------------------------------------------------ | ------------- |
+| `humano`      | Juega una persona desde la terminal (y más adelante desde la web)  | listo         |
+| `random`      | Elige una jugada legal al azar                                     | listo         |
+| `basico`      | Primer heurístico: envida según la fuerza de su mano               | listo         |
+| `reglas`      | Heurístico avanzado: lee la mesa, calcula probabilidades, juega según el marcador y aprende de cada rival (estilos `equilibrado`, `agresivo`, `conservador`) | listo |
+| `inteligente` | Entrenado para jugar como un humano                                | próximamente  |
+
+Cómo funcionan los bots y cómo programar uno nuevo: [`docs/bots.md`](docs/bots.md).
 
 ## Instalación
 
@@ -61,14 +63,24 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
 pytest
-mus-play        # partida en la terminal (4 humanos en la misma pantalla)
+```
+
+## Jugar
+
+```bash
+mus-play                                            # pregunta quién ocupa cada asiento
+mus-play --jugadores humano,reglas,reglas,reglas    # tú contra tres bots
+mus-play --jugadores humano,reglas:agresivo,reglas,reglas:conservador   # con estilos
+mus-play --jugadores reglas,random,reglas,random    # solo bots, para mirar
+mus-arena reglas basico -n 200                      # enfrenta dos bots en 200 partidas
+mus-arena reglas:agresivo reglas:conservador        # también con estilos
 ```
 
 ## Estructura
 
 ```
-src/musarena/     motor del juego, API Player, torneo
-players/          bots
+src/musarena/          motor del juego, API Player, arena
+src/musarena/players/  jugadores: humano en terminal y bots
 tests/            tests (pytest)
 web/              interfaz web
 docs/             documentación

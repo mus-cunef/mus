@@ -34,6 +34,11 @@ def nombre_pareja(p: int) -> str:
     return "A" if p == 0 else "B"
 
 
+def nombre_jugador(asiento: int) -> str:
+    """Nombre que ven las personas: los asientos 0-3 se muestran como Jugador 1-4."""
+    return f"Jugador {asiento + 1}"
+
+
 class Fase(Enum):
     """En qué punto de la mano está la partida."""
 
@@ -93,6 +98,7 @@ class ResumenMano:
     cobros: tuple[Cobro, ...]
     tantos: tuple[int, int]
     ganador_vaca: int | None
+    historial: tuple[Evento, ...] = ()  # todo lo que pasó en la mano (público)
 
 
 @dataclass
