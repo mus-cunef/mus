@@ -387,6 +387,7 @@ def _terminar_mano(s: State, ganador_vaca: int | None) -> None:
             cobros=tuple(s.cobros),
             tantos=(s.tantos[0], s.tantos[1]),
             ganador_vaca=ganador_vaca,
+            historial=tuple(s.historial),
         )
     )
     s.apuesta = None

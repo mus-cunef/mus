@@ -98,6 +98,7 @@ class ResumenMano:
     cobros: tuple[Cobro, ...]
     tantos: tuple[int, int]
     ganador_vaca: int | None
+    historial: tuple[Evento, ...] = ()  # todo lo que pasó en la mano (público)
 
 
 @dataclass
