@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from musarena.player import Player
+from musarena.players.basic_bot import BasicBot
 from musarena.players.heuristic_bot import HeuristicBot
 from musarena.players.human_terminal import HumanTerminalPlayer
 from musarena.players.random_bot import RandomBot
@@ -18,6 +19,7 @@ from musarena.players.random_bot import RandomBot
 TIPOS: dict[str, type[Player]] = {
     "humano": HumanTerminalPlayer,
     RandomBot.tipo: RandomBot,
+    BasicBot.tipo: BasicBot,
     HeuristicBot.tipo: HeuristicBot,
 }
 
@@ -35,4 +37,7 @@ def crear_jugador(tipo: str, **kwargs: Any) -> Player:
     return clase(**kwargs)
 
 
-__all__ = ["BOTS", "TIPOS", "HeuristicBot", "HumanTerminalPlayer", "RandomBot", "crear_jugador"]
+__all__ = [
+    "BOTS", "TIPOS", "BasicBot", "HeuristicBot", "HumanTerminalPlayer", "RandomBot",
+    "crear_jugador",
+]

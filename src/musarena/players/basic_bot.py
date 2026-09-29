@@ -1,4 +1,6 @@
-"""Bot heurístico: juega con reglas sencillas basadas en la fuerza de su mano.
+"""Bot básico: la primera versión del heurístico, con reglas sencillas y sin leer la mesa.
+
+Se conserva como referencia para medir si los bots nuevos son mejores.
 
 Las reglas están pensadas para poder explicarse en voz alta:
 
@@ -7,7 +9,7 @@ Las reglas están pensadas para poder explicarse en voz alta:
 2. **Descarte**: juega "a reyes" (se queda con reyes y parejas) o "a chica" si lleva dos o
    más ases y menos de dos reyes (se queda con ases, cuatros y parejas).
 3. **Apuestas**: estima la probabilidad de que su pareja gane el lance (ver
-   :meth:`HeuristicBot.prob_ganar`) y
+   :meth:`BasicBot.prob_ganar`) y
    - sin envite previo: envida más cuanto mejor va, con un farol de vez en cuando;
    - ante un envite: quiere solo si le compensa en valor esperado frente a perder el deje, y
      reenvida o echa órdago con manos muy buenas.
@@ -41,11 +43,11 @@ from musarena.state import TANTOS_VACA, Fase, pareja
 UMBRAL_CORTE = 3.0
 
 
-class HeuristicBot(Bot):
+class BasicBot(Bot):
     """Bot de reglas. ``farol`` es la probabilidad de envidar sin cartas si nadie ha envidado."""
 
-    tipo = "reglas"
-    descripcion = "Juega según heurísticas: envida con buenas cartas y a veces va de farol"
+    tipo = "basico"
+    descripcion = "Heurístico sencillo: envida con buenas cartas sin fijarse en los rivales"
 
     def __init__(self, nombre: str | None = None, seed: int | None = None, farol: float = 0.08):
         super().__init__(nombre, seed)
