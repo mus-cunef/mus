@@ -70,6 +70,7 @@ pytest
 ```bash
 mus-play                                            # pregunta quién ocupa cada asiento
 mus-play --jugadores humano,reglas,reglas,reglas    # tú contra tres bots
+mus-play --jugadores humano,reglas:agresivo,reglas,reglas:conservador   # con estilos
 mus-play --jugadores reglas,random,reglas,random    # solo bots, para mirar
 mus-arena reglas basico -n 200                      # enfrenta dos bots en 200 partidas
 mus-arena reglas:agresivo reglas:conservador        # también con estilos
