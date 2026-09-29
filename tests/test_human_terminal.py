@@ -1,10 +1,10 @@
 from helpers import JugadorAleatorio
 from musarena.actions import Descarte, Envido, Mus, NoHayMus, Ordago, Paso, Quiero, Reenvido
-from musarena.cli import preguntar_mejor_de
+from musarena.cli import crear_mesa, main, preguntar_jugadores, preguntar_mejor_de
 from musarena.engine import apply, legal_actions, nueva_partida
 from musarena.match import Match
 from musarena.observation import observe
-from musarena.players import HumanTerminalPlayer
+from musarena.players import HeuristicBot, HumanTerminalPlayer, RandomBot
 
 
 def _humano(respuestas, **kwargs):
@@ -110,6 +110,39 @@ def test_partida_entera_de_un_humano_contra_aleatorios():
     humano = HumanTerminalPlayer(entrada=lambda _: next(respuestas), salida=lambda _: None)
     match = Match([humano, *[JugadorAleatorio(seed=i) for i in range(3)]], seed=4)
     assert match.play(max_turnos=50_000) in (0, 1)
+
+
+def test_preguntar_jugadores(capsys):
+    respuestas = iter(["", "reglas", "robot", "RANDOM", "humano"])
+    assert preguntar_jugadores(lambda _: next(respuestas)) == ["humano", "reglas", "random",
+                                                               "humano"]
+
+
+def test_crear_mesa_mixta():
+    mesa = crear_mesa(["reglas", "humano", "random", "humano"], seed=1)
+    assert isinstance(mesa[0], HeuristicBot) and isinstance(mesa[2], RandomBot)
+    assert mesa[1].pausa_entre_turnos and mesa[3].pausa_entre_turnos  # dos humanos
+    assert mesa[1].mostrar_resumenes and not mesa[3].mostrar_resumenes
+
+
+def test_un_humano_contra_bots_no_hace_pausa():
+    mesa = crear_mesa(["humano", "reglas", "reglas", "reglas"])
+    assert not mesa[0].pausa_entre_turnos and mesa[0].mostrar_resumenes
+
+
+def test_mus_play_solo_bots(capsys):
+    assert main(["--jugadores", "reglas,random,reglas,random", "--mejor-de", "3",
+                 "--seed", "1"]) == 0
+    salida = capsys.readouterr().out
+    assert "Fin de la mano 1" in salida
+    assert "Resultado: pareja" in salida
+
+
+def test_mus_play_rechaza_jugadores_mal_escritos():
+    import pytest
+
+    with pytest.raises(SystemExit):
+        main(["--jugadores", "humano,reglas"])
 
 
 def test_preguntar_mejor_de():

@@ -16,12 +16,33 @@ from musarena.actions import (
 )
 from musarena.observation import Observation
 from musarena.player import Player
-from musarena.state import Fase, nombre_jugador, nombre_pareja
+from musarena.state import Fase, ResumenMano, nombre_jugador, nombre_pareja
 
 # Opciones del menú que agrupan varias acciones legales y piden un dato más.
 _ENVIDO_N = "envido_n"
 _REENVIDO_N = "reenvido_n"
 _DESCARTE = "descarte"
+
+
+def _quien(asiento: int) -> str:
+    return f"{nombre_jugador(asiento)} (pareja {nombre_pareja(asiento % 2)})"
+
+
+def lineas_resumen(resumen: ResumenMano, vacas: tuple[int, int]) -> list[str]:
+    """Texto del final de una mano: las cartas de todos, los cobros y el marcador."""
+    lineas = ["", f"--- Fin de la mano {resumen.numero} ---"]
+    for asiento, cartas in enumerate(resumen.cartas):
+        lineas.append(f"  {_quien(asiento)}: {', '.join(str(c) for c in cartas)}")
+    for cobro in resumen.cobros:
+        lance = f"{cobro.lance}: " if cobro.lance else ""
+        lineas.append(
+            f"  Pareja {nombre_pareja(cobro.pareja)} cobra {cobro.tantos} ({lance}{cobro.motivo})"
+        )
+    lineas.append(f"  Tantos: A {resumen.tantos[0]} - B {resumen.tantos[1]}")
+    if resumen.ganador_vaca is not None:
+        lineas.append(f"  ¡La pareja {nombre_pareja(resumen.ganador_vaca)} gana la vaca!")
+    lineas.append(f"  Vacas: A {vacas[0]} - B {vacas[1]}")
+    return lineas
 
 
 def _maximo_reenvido(legal_actions: Sequence[Action]) -> int:
@@ -87,19 +108,8 @@ class HumanTerminalPlayer(Player):
     def on_hand_end(self, observation: Observation) -> None:
         if not self.mostrar_resumenes:
             return
-        resumen = observation.manos_jugadas[-1]
-        self._salida("")
-        self._salida(f"--- Fin de la mano {resumen.numero} ---")
-        for asiento, cartas in enumerate(resumen.cartas):
-            self._salida(f"  {self._quien(asiento)}: {', '.join(str(c) for c in cartas)}")
-        for cobro in resumen.cobros:
-            lance = f"{cobro.lance}: " if cobro.lance else ""
-            quien = f"Pareja {nombre_pareja(cobro.pareja)}"
-            self._salida(f"  {quien} cobra {cobro.tantos} ({lance}{cobro.motivo})")
-        self._salida(f"  Tantos: A {resumen.tantos[0]} - B {resumen.tantos[1]}")
-        if resumen.ganador_vaca is not None:
-            self._salida(f"  ¡La pareja {nombre_pareja(resumen.ganador_vaca)} gana la vaca!")
-        self._salida(f"  Vacas: A {observation.vacas[0]} - B {observation.vacas[1]}")
+        for linea in lineas_resumen(observation.manos_jugadas[-1], observation.vacas):
+            self._salida(linea)
 
     def on_game_end(self, observation: Observation) -> None:
         if self.mostrar_resumenes and observation.ganador is not None:
@@ -108,8 +118,9 @@ class HumanTerminalPlayer(Player):
 
     # --- Pantalla --------------------------------------------------------------------------
 
-    def _quien(self, asiento: int) -> str:
-        return f"{nombre_jugador(asiento)} (pareja {nombre_pareja(asiento % 2)})"
+    @staticmethod
+    def _quien(asiento: int) -> str:
+        return _quien(asiento)
 
     def _mostrar(self, obs: Observation) -> None:
         s = self._salida
