@@ -20,11 +20,13 @@ from musarena.observation import observe
 from musarena.player import Bot
 from musarena.players import (
     BOTS,
+    OPCIONES,
     TIPOS,
     BasicBot,
     HeuristicBot,
     RandomBot,
     crear_jugador,
+    es_tipo_valido,
 )
 from musarena.players.heuristic_bot import ESTILOS, estilo_con
 
@@ -58,9 +60,13 @@ def test_registro_de_tipos():
     assert isinstance(crear_jugador("basico", seed=1), BasicBot)
     assert isinstance(crear_jugador("reglas", seed=1), HeuristicBot)
     assert crear_jugador("reglas", seed=1, estilo="agresivo").estilo is ESTILOS["agresivo"]
+    assert crear_jugador("reglas:conservador", seed=1).estilo is ESTILOS["conservador"]
     assert all(issubclass(TIPOS[t], Bot) for t in BOTS)
-    with pytest.raises(ValueError):
-        crear_jugador("experto")
+    assert "reglas:agresivo" in OPCIONES
+    assert es_tipo_valido("reglas:agresivo") and not es_tipo_valido("random:agresivo")
+    for malo in ("experto", "reglas:loco", "random:agresivo"):
+        with pytest.raises(ValueError):
+            crear_jugador(malo)
 
 
 # --- Partidas completas: los bots nunca hacen jugadas ilegales ---

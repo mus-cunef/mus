@@ -173,6 +173,14 @@ def test_preguntar_jugadores(capsys):
                                                                "humano"]
 
 
+def test_mesa_con_estilos():
+    respuestas = iter(["", "reglas:agresivo", "reglas:loco", "basico", "reglas:conservador"])
+    tipos = preguntar_jugadores(lambda _: next(respuestas))
+    assert tipos == ["humano", "reglas:agresivo", "basico", "reglas:conservador"]
+    mesa = crear_mesa(tipos, seed=1)
+    assert mesa[1].estilo.nombre == "agresivo" and mesa[3].estilo.nombre == "conservador"
+
+
 def test_crear_mesa_mixta():
     mesa = crear_mesa(["reglas", "humano", "random", "humano"], seed=1)
     assert isinstance(mesa[0], HeuristicBot) and isinstance(mesa[2], RandomBot)

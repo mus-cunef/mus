@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from musarena.match import Match
 from musarena.player import Player
-from musarena.players import BOTS, crear_jugador
+from musarena.players import BOTS, crear_jugador, es_tipo_valido
 from musarena.state import pareja
 
 
@@ -68,11 +68,9 @@ def fabrica(tipo: str | Fabrica) -> Fabrica:
     """Convierte ``"reglas"``, ``"reglas:agresivo"`` (tipo y estilo) o una función en fábrica."""
     if callable(tipo):
         return tipo
-    base, _, estilo = tipo.partition(":")
-    if base not in BOTS:
-        raise ValueError(f"En la arena solo juegan bots: {', '.join(BOTS)}")
-    extra = {"estilo": estilo} if estilo else {}
-    return lambda seed: crear_jugador(base, seed=seed, **extra)
+    if tipo.partition(":")[0] not in BOTS or not es_tipo_valido(tipo):
+        raise ValueError(f"En la arena solo juegan bots: {', '.join(BOTS)} (y estilos de reglas)")
+    return lambda seed: crear_jugador(tipo, seed=seed)
 
 
 def enfrentar(

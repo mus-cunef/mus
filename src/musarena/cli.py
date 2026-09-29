@@ -4,6 +4,7 @@ Ejemplos::
 
     mus-play                                     # pregunta quién juega en cada asiento
     mus-play --jugadores humano,reglas,reglas,reglas
+    mus-play --jugadores humano,reglas:agresivo,reglas,reglas:conservador
     mus-play --jugadores reglas,random,reglas,random --mejor-de 5    # solo bots, a mirar
 """
 
@@ -14,7 +15,7 @@ from collections.abc import Callable, Sequence
 
 from musarena.match import Match
 from musarena.player import Player
-from musarena.players import TIPOS, HumanTerminalPlayer, crear_jugador
+from musarena.players import OPCIONES, HumanTerminalPlayer, crear_jugador, es_tipo_valido
 from musarena.players.human_terminal import lineas_resumen
 from musarena.state import nombre_jugador, nombre_pareja
 
@@ -30,16 +31,16 @@ def preguntar_mejor_de(entrada: Callable[[str], str] = input) -> int:
 
 def preguntar_jugadores(entrada: Callable[[str], str] = input) -> list[str]:
     """Pregunta qué tipo de jugador ocupa cada asiento (por defecto, humano)."""
-    print(f"¿Quién juega en cada asiento? Opciones: {', '.join(TIPOS)}.")
+    print(f"¿Quién juega en cada asiento? Opciones: {', '.join(OPCIONES)}.")
     tipos = []
     for asiento in range(4):
         while True:
             respuesta = entrada(f"  {nombre_jugador(asiento)} [humano]: ").strip().lower()
             respuesta = respuesta or "humano"
-            if respuesta in TIPOS:
+            if es_tipo_valido(respuesta):
                 tipos.append(respuesta)
                 break
-            print(f"  Escribe una de estas opciones: {', '.join(TIPOS)}.")
+            print(f"  Escribe una de estas opciones: {', '.join(OPCIONES)}.")
     return tipos
 
 
@@ -79,15 +80,15 @@ def jugar(match: Match, hay_humanos: bool) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mus-play", description="Juega al mus en la terminal.")
     parser.add_argument("--mejor-de", type=int, choices=(3, 5), help="vacas de la partida")
-    parser.add_argument("--jugadores", help=f"4 tipos separados por comas ({', '.join(TIPOS)})")
+    parser.add_argument("--jugadores", help=f"4 tipos separados por comas ({', '.join(OPCIONES)})")
     parser.add_argument("--seed", type=int, default=None, help="semilla para repetir la partida")
     args = parser.parse_args(argv)
 
     tipos = None
     if args.jugadores:
         tipos = [t.strip().lower() for t in args.jugadores.split(",")]
-        if len(tipos) != 4 or any(t not in TIPOS for t in tipos):
-            parser.error(f"--jugadores necesita 4 tipos de entre: {', '.join(TIPOS)}")
+        if len(tipos) != 4 or not all(es_tipo_valido(t) for t in tipos):
+            parser.error(f"--jugadores necesita 4 tipos de entre: {', '.join(OPCIONES)}")
 
     print("Mus Arena · 4 jugadores, pareja A (jugadores 1 y 3) contra B (jugadores 2 y 4).")
     print("En cualquier momento puedes escribir '/chat mensaje' para hablar con la mesa.")
