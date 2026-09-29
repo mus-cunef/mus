@@ -48,7 +48,8 @@ Las reglas detalladas (8 reyes, desempates por mano, apuestas, recuento…) est�
 | ------------- | ------------------------------------------------------------------ | ------------- |
 | `humano`      | Juega una persona desde la terminal (y más adelante desde la web)  | listo         |
 | `random`      | Elige una jugada legal al azar                                     | listo         |
-| `reglas`      | Heurísticas: corta y envida según la fuerza de su mano, con faroles | listo         |
+| `basico`      | Primer heurístico: envida según la fuerza de su mano               | listo         |
+| `reglas`      | Heurístico avanzado: lee la mesa, calcula probabilidades, juega según el marcador y aprende de cada rival (estilos `equilibrado`, `agresivo`, `conservador`) | listo |
 | `inteligente` | Entrenado para jugar como un humano                                | próximamente  |
 
 Cómo funcionan los bots y cómo programar uno nuevo: [`docs/bots.md`](docs/bots.md).
@@ -70,7 +71,8 @@ pytest
 mus-play                                            # pregunta quién ocupa cada asiento
 mus-play --jugadores humano,reglas,reglas,reglas    # tú contra tres bots
 mus-play --jugadores reglas,random,reglas,random    # solo bots, para mirar
-mus-arena reglas random -n 200                      # enfrenta dos bots en 200 partidas
+mus-arena reglas basico -n 200                      # enfrenta dos bots en 200 partidas
+mus-arena reglas:agresivo reglas:conservador        # también con estilos
 ```
 
 ## Estructura

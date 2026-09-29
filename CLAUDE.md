@@ -28,9 +28,13 @@ src/musarena/
   chat.py       chat abierto de la mesa
   player.py     clase abstracta Player: choose_action(observation, legal_actions) -> Action;
                 Bot (Player con rng propio y `tipo` para el registro)
-  players/      HumanTerminalPlayer, RandomBot ("random"), HeuristicBot ("reglas") y el
-                registro TIPOS / crear_jugador(tipo) que usan la CLI, la arena y (más adelante) la web
+  players/      HumanTerminalPlayer, RandomBot ("random"), BasicBot ("basico"), HeuristicBot
+                ("reglas", con estilos) y el registro TIPOS / crear_jugador(tipo) que usan la
+                CLI, la arena y (más adelante) la web
   fuerza.py     probabilidad exacta de ganar a una mano al azar en cada lance
+  estrategia/   análisis compartido por los bots (numpy): 330 tipos de mano, valor y
+                descartes, creencias bayesianas sobre las manos ajenas, probabilidad de ganar
+                cada lance y la vaca, lectura de rivales. Solo usa la Observation.
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos tipos de bot en muchas partidas (`mus-arena`)
