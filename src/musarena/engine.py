@@ -55,6 +55,7 @@ from musarena.state import (
     ResumenMano,
     State,
     TipoResultado,
+    nombre_jugador,
     nombre_pareja,
     pareja,
 )
@@ -162,7 +163,7 @@ def _repartir(s: State) -> None:
     s.resultados = []
     s.cobros = []
     s.declaraciones = {}
-    s.historial = [Evento(None, f"Mano {s.numero_mano}: es mano el jugador {s.mano}")]
+    s.historial = [Evento(None, f"Mano {s.numero_mano}: es mano el {nombre_jugador(s.mano)}")]
 
 
 def _siguiente(asiento: int) -> int:

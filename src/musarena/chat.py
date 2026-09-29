@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from musarena.state import nombre_jugador
+
 #: Longitud máxima de un mensaje, para que nadie pueda llenar la mesa de texto.
 LONGITUD_MAXIMA = 500
 
@@ -20,7 +22,7 @@ class MensajeChat:
     numero_mano: int
 
     def __str__(self) -> str:
-        return f"[Jugador {self.asiento}] {self.texto}"
+        return f"[{nombre_jugador(self.asiento)}] {self.texto}"
 
 
 class Chat:

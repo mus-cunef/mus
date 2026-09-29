@@ -100,7 +100,7 @@ def test_aviso_de_turno_con_pausa():
 
     jugador = HumanTerminalPlayer(entrada=entrada, salida=lambda _: None, pausa_entre_turnos=True)
     assert jugador.choose_action(observe(s, 0), legal_actions(s)) == Mus()
-    assert "Turno de Jugador 0" in preguntas[0]
+    assert "Turno de Jugador 1" in preguntas[0]  # el asiento 0 se muestra como Jugador 1
 
 
 def test_partida_entera_de_un_humano_contra_aleatorios():

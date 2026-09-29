@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 
 from musarena.match import Match
 from musarena.players import HumanTerminalPlayer
-from musarena.state import nombre_pareja
+from musarena.state import nombre_jugador, nombre_pareja
 
 
 def preguntar_mejor_de(entrada: Callable[[str], str] = input) -> int:
@@ -25,13 +25,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=None, help="semilla para repetir el reparto")
     args = parser.parse_args(argv)
 
-    print("Mus Arena · 4 jugadores, parejas A (asientos 0 y 2) contra B (asientos 1 y 3).")
+    print("Mus Arena · 4 jugadores, pareja A (jugadores 1 y 3) contra B (jugadores 2 y 4).")
     print("En cualquier momento puedes escribir '/chat mensaje' para hablar con la mesa.")
     try:
         mejor_de = args.mejor_de or preguntar_mejor_de()
         jugadores = [
             HumanTerminalPlayer(
-                nombre=f"Jugador {asiento}",
+                nombre=nombre_jugador(asiento),
                 pausa_entre_turnos=True,
                 mostrar_resumenes=(asiento == 0),  # un solo resumen por mano en la pantalla
             )

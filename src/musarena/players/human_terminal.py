@@ -16,7 +16,7 @@ from musarena.actions import (
 )
 from musarena.observation import Observation
 from musarena.player import Player
-from musarena.state import Fase, nombre_pareja
+from musarena.state import Fase, nombre_jugador, nombre_pareja
 
 # Opciones del menú que agrupan varias acciones legales y piden un dato más.
 _ENVIDO_N = "envido_n"
@@ -109,7 +109,7 @@ class HumanTerminalPlayer(Player):
     # --- Pantalla --------------------------------------------------------------------------
 
     def _quien(self, asiento: int) -> str:
-        return f"Jugador {asiento} (pareja {nombre_pareja(asiento % 2)})"
+        return f"{nombre_jugador(asiento)} (pareja {nombre_pareja(asiento % 2)})"
 
     def _mostrar(self, obs: Observation) -> None:
         s = self._salida
@@ -120,8 +120,8 @@ class HumanTerminalPlayer(Player):
             f" · Vacas A {obs.vacas[0]} - B {obs.vacas[1]} (gana quien llegue a "
             f"{obs.vacas_para_ganar})"
         )
-        s(f"Eres el {self._quien(obs.asiento)}; tu compañero es el jugador {obs.companero}. "
-          f"Es mano el jugador {obs.mano}.")
+        s(f"Eres el {self._quien(obs.asiento)}; tu compañero es el "
+          f"{nombre_jugador(obs.companero)}. Es mano el {nombre_jugador(obs.mano)}.")
 
         numero, vistos = self._visto
         if numero != obs.numero_mano:
@@ -130,7 +130,7 @@ class HumanTerminalPlayer(Player):
         if nuevos:
             s("Lo último que ha pasado:")
             for evento in nuevos:
-                quien = f"Jugador {evento.asiento}: " if evento.asiento is not None else ""
+                quien = f"{nombre_jugador(evento.asiento)}: " if evento.asiento is not None else ""
                 s(f"  · {quien}{evento.texto}")
         self._visto = (obs.numero_mano, len(obs.historial))
 
