@@ -26,10 +26,15 @@ src/musarena/
   engine.py     reglas: legal_actions(state), apply(state, action) -> nuevo estado
   observation.py  vista parcial de un asiento (solo sus cartas + información pública)
   chat.py       chat abierto de la mesa
-  player.py     clase abstracta Player: choose_action(observation, legal_actions) -> Action
-  players/      HumanTerminalPlayer (y más adelante, bots)
-  match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player
-  cli.py        punto de entrada `mus-play` para jugar en terminal
+  player.py     clase abstracta Player: choose_action(observation, legal_actions) -> Action;
+                Bot (Player con rng propio y `tipo` para el registro)
+  players/      HumanTerminalPlayer, RandomBot ("random"), HeuristicBot ("reglas") y el
+                registro TIPOS / crear_jugador(tipo) que usan la CLI, la arena y (más adelante) la web
+  fuerza.py     probabilidad exacta de ganar a una mano al azar en cada lance
+  match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
+                `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
+  arena.py      enfrenta dos tipos de bot en muchas partidas (`mus-arena`)
+  cli.py        punto de entrada `mus-play` (humanos y bots en cualquier asiento)
 tests/          pytest
 ```
 
