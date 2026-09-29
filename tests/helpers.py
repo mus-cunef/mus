@@ -2,20 +2,21 @@
 
 import random
 
+from musarena.actions import Ordago
 from musarena.cards import Carta, Palo
-from musarena.player import Player
+from musarena.players.random_bot import RandomBot
 
 
-class JugadorAleatorio(Player):
-    """Jugador de prueba: elige al azar primero el tipo de acción y luego la acción.
+class JugadorAleatorio(RandomBot):
+    """El bot aleatorio con dos opciones extra para los tests.
 
-    Elegir primero el tipo evita que casi siempre salga un reenvido (hay 39 cantidades distintas).
-    Opcionalmente escribe en el chat, para comprobar que el chat no afecta a la partida.
+    - ``charlatan``: escribe en el chat, con su propio generador aleatorio para no cambiar sus
+      jugadas; sirve para comprobar que el chat no afecta a la partida.
+    - ``sin_ordago``: no echa órdagos, para que las vacas se ganen por tantos.
     """
 
     def __init__(self, seed: int, charlatan: bool = False, sin_ordago: bool = False) -> None:
-        super().__init__()
-        self.rng = random.Random(seed)
+        super().__init__(seed=seed)
         self.sin_ordago = sin_ordago
         self.rng_chat = random.Random(seed) if charlatan else None
         self.observaciones = []
@@ -24,11 +25,11 @@ class JugadorAleatorio(Player):
         self.observaciones.append(observation)
         if self.rng_chat is not None and self.rng_chat.random() < 0.3:
             self.say(f"hola desde el asiento {self.asiento}")
-        tipos = sorted({type(a).__name__ for a in legal_actions})
-        if self.sin_ordago and len(tipos) > 1 and "Ordago" in tipos:
-            tipos.remove("Ordago")
-        tipo = self.rng.choice(tipos)
-        return self.rng.choice([a for a in legal_actions if type(a).__name__ == tipo])
+        if self.sin_ordago:
+            sin = [a for a in legal_actions if not isinstance(a, Ordago)]
+            legal_actions = sin or legal_actions
+        return super().choose_action(observation, legal_actions)
+
 
 _NUMEROS = {
     "A": 1, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7,
