@@ -35,6 +35,9 @@ src/musarena/
   estrategia/   análisis compartido por los bots (numpy): 330 tipos de mano, valor y
                 descartes, creencias bayesianas sobre las manos ajenas, probabilidad de ganar
                 cada lance y la vaca, lectura de rivales. Solo usa la Observation.
+  ia/           bot inteligente: catálogo de 40 acciones, codificación de la Observation,
+                red en numpy (jugar) y entrenamiento con PyTorch (extra [ia]); pesos en
+                ia/modelos/. Plan y resultados en docs/inteligente.md
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos tipos de bot en muchas partidas (`mus-arena`)

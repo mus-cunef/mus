@@ -15,6 +15,7 @@ from musarena.players.basic_bot import BasicBot
 from musarena.players.heuristic_bot import ESTILOS, HeuristicBot
 from musarena.players.human_terminal import HumanTerminalPlayer
 from musarena.players.random_bot import RandomBot
+from musarena.players.smart_bot import SmartBot
 
 #: Tipos de jugador disponibles, por nombre.
 TIPOS: dict[str, type[Player]] = {
@@ -22,6 +23,7 @@ TIPOS: dict[str, type[Player]] = {
     RandomBot.tipo: RandomBot,
     BasicBot.tipo: BasicBot,
     HeuristicBot.tipo: HeuristicBot,
+    SmartBot.tipo: SmartBot,
 }
 
 #: Tipos que son bots (se pueden enfrentar en la arena sin nadie delante).
@@ -54,5 +56,5 @@ def crear_jugador(tipo: str, **kwargs: Any) -> Player:
 
 __all__ = [
     "BOTS", "OPCIONES", "TIPOS", "BasicBot", "HeuristicBot", "HumanTerminalPlayer", "RandomBot",
-    "crear_jugador", "es_tipo_valido",
+    "SmartBot", "crear_jugador", "es_tipo_valido",
 ]

@@ -54,7 +54,7 @@ def _a_descartes(s):
 
 
 def test_registro_de_tipos():
-    assert set(BOTS) == {"random", "basico", "reglas"}
+    assert set(BOTS) == {"random", "basico", "reglas", "inteligente"}
     assert "humano" in TIPOS
     assert isinstance(crear_jugador("random", seed=1), RandomBot)
     assert isinstance(crear_jugador("basico", seed=1), BasicBot)

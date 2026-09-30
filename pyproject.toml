@@ -14,6 +14,8 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.4"]
+# Solo para entrenar el bot inteligente (para jugar con él basta numpy).
+ia = ["torch>=2.2"]
 
 [project.scripts]
 mus-play = "musarena.cli:main"
@@ -21,6 +23,10 @@ mus-arena = "musarena.arena:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# Los pesos entrenados del bot inteligente viajan con el paquete.
+musarena = ["ia/modelos/*.npz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
