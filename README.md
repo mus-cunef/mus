@@ -50,7 +50,7 @@ Las reglas detalladas (8 reyes, desempates por mano, apuestas, recuento…) est�
 | `random`      | Elige una jugada legal al azar                                     | listo         |
 | `basico`      | Primer heurístico: envida según la fuerza de su mano               | listo         |
 | `reglas`      | Heurístico avanzado: lee la mesa, calcula probabilidades, juega según el marcador y aprende de cada rival (estilos `equilibrado`, `agresivo`, `conservador`) | listo |
-| `inteligente` | Red neuronal: de momento imita a `reglas`; aprendiendo a superarlo y a jugar como un humano ([`docs/inteligente.md`](docs/inteligente.md)) | en desarrollo |
+| `inteligente` | Red neuronal entrenada imitando a `reglas` y después con aprendizaje por refuerzo (PPO) contra una liga de rivales: gana a `reglas` en torno al 75 % de las partidas ([`docs/inteligente.md`](docs/inteligente.md)) | en desarrollo |
 
 Cómo funcionan los bots y cómo programar uno nuevo: [`docs/bots.md`](docs/bots.md).
 

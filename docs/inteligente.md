@@ -30,7 +30,7 @@ src/musarena/ia/
   codificacion.py   Observation -> vector de 163 números
   red.py            la red en numpy (para jugar no hace falta PyTorch)
   modelos/          pesos entrenados que viajan con el paquete
-  entrenamiento/    generación de datos e imitación (necesita PyTorch)
+  entrenamiento/    datos, imitación y refuerzo con PPO (necesita PyTorch)
 src/musarena/players/smart_bot.py   el bot "inteligente"
 ```
 
@@ -211,6 +211,29 @@ demás. Resultados:
 Como cambian las creencias, cambia lo que ve la red. Por eso se regeneran la imitación y el
 refuerzo.
 
+### Entrenamiento largo (v2): el modelo actual
+
+Con la tabla de descartes en las creencias:
+
+1. Imitación del nuevo `reglas`: acierta el 87,6 % de sus jugadas.
+2. 300 iteraciones de refuerzo con `vaca+farol` 0,2: 180.000 partidas, unos 45 minutos.
+
+Victorias contra el nuevo `reglas`, midiendo cada 20 iteraciones (400 partidas, ± 4 %):
+
+| Iteración | 20 | 60 | 100 | 140 | 180 | 220 | 260 | 300 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Victorias | 68,2 % | 72,2 % | 73,5 % | 76,2 % | 75,5 % | 77,2 % | **80,0 %** | 77,2 % |
+
+**Interpretación:**
+- Hasta la iteración 100 va como los experimentos cortos.
+- Después sigue subiendo despacio, sin tocar techo, así que entrenar más tiempo compensa.
+- Desde la 240 se mueve entre el 77 % y el 80 %.
+
+El modelo del paquete (`ia/modelos/inteligente.npz`) es el de la **iteración 260**, y es
+**provisional**: al ser la mejor de 15 medidas ruidosas, su 80 % está seguramente algo inflado.
+Lo esperable está en torno al 77-79 %. Queda pendiente confirmarlo con 2.000 partidas contra
+cada estilo, compararlo con las iteraciones 240, 280 y 300 y enfrentarlo al modelo anterior.
+
 ### Reproducirlo
 
 ```bash
@@ -227,8 +250,10 @@ mus-arena inteligente:checkpoints/v2/mejor.npz reglas -n 2000 -p 0
 
 ## Próximos pasos
 
-- **Semana 2 (sigue)**: entrenamiento largo con farol 0,2 y las nuevas creencias; después,
-  redes más grandes y más partidas por iteración.
+- **Semana 2 (sigue)**:
+  - confirmar el modelo v2 con 2.000 partidas por estilo;
+  - entrenar más tiempo, porque seguía subiendo;
+  - probar redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.
 - **Semana 4**: grabar partidas humanas, ajustar el estilo y medir contra personas.
