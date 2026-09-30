@@ -188,10 +188,10 @@ def _aplicar_mus(s: State, asiento: int, action: Action) -> None:
 def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     descartadas = [c for c in s.cartas[asiento] if c in action.cartas]
     se_queda = [c for c in s.cartas[asiento] if c not in action.cartas]
-    # Primero se roba y después se añaden los descartes propios a la pila, para que nadie
-    # pueda volver a recibir las cartas que acaba de tirar.
-    s.cartas[asiento] = ordenar_cartas(se_queda + s.baraja.robar(len(descartadas)))
+    # Las cartas tiradas van a la pila antes de robar: si el mazo se acaba a mitad del robo, se
+    # barajan todos los descartes, incluidos los que acaba de tirar este jugador.
     s.baraja.descartar(descartadas)
+    s.cartas[asiento] = ordenar_cartas(se_queda + s.baraja.robar(len(descartadas)))
     n = len(descartadas)
     s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
     s.descartes_hechos += 1
