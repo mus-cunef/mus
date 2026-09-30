@@ -74,18 +74,29 @@ def nueva_partida(
     mejor_de: int = 3,
     seed: int | None = None,
     rng: random.Random | None = None,
-    mano: int = 0,
+    mano: int | None = None,
+    corrida: bool | None = None,
 ) -> State:
     """Crea una partida nueva con la primera mano ya repartida.
 
     Se puede pasar una semilla (``seed``) o un generador (``rng``) para que sea reproducible.
+
+    Por defecto se sigue la regla de la primera mano: se sortea quién empieza y la mano se
+    **corre** hasta que alguien corta (``docs/reglas.md``, punto 3.6). Si se indica ``mano``,
+    ese jugador es la mano desde el principio y no hay mano corrida (útil para preparar
+    posiciones concretas en los tests), salvo que se pida con ``corrida=True``.
     """
     generador = rng if rng is not None else random.Random(seed)
+    if corrida is None:
+        corrida = mano is None
+    if mano is None:
+        mano = generador.randrange(4)
     estado = State(
         vacas_para_ganar=vacas_para_ganar(mejor_de),
         rng=generador,
         baraja=Baraja(generador),
         mano=mano,
+        corrida=corrida,
     )
     _repartir(estado)
     return estado
@@ -164,7 +175,12 @@ def _repartir(s: State) -> None:
     s.resultados = []
     s.cobros = []
     s.declaraciones = {}
-    s.historial = [Evento(None, f"Mano {s.numero_mano}: es mano el {nombre_jugador(s.mano)}")]
+    if s.corrida:
+        texto = (f"Mano {s.numero_mano}: mano corrida, empieza hablando el "
+                 f"{nombre_jugador(s.mano)}")
+    else:
+        texto = f"Mano {s.numero_mano}: es mano el {nombre_jugador(s.mano)}"
+    s.historial = [Evento(None, texto)]
 
 
 def _siguiente(asiento: int) -> int:
@@ -174,11 +190,19 @@ def _siguiente(asiento: int) -> int:
 def _aplicar_mus(s: State, asiento: int, action: Action) -> None:
     s.historial.append(Evento(asiento, str(action), action))
     if isinstance(action, NoHayMus):
+        if s.corrida:  # mano corrida: quien corta es la mano
+            s.corrida = False
+            s.mano = asiento
+            s.historial.append(Evento(None, f"Corta el {nombre_jugador(asiento)}: es mano"))
         _empezar_lances(s)
         return
     s.mus_pedidos += 1
     if s.mus_pedidos == 4:
         s.historial.append(Evento(None, "Todos piden mus: descartes"))
+        if s.corrida:  # mano corrida: la mano se pasa un puesto más
+            s.mano = _siguiente(s.mano)
+            s.historial.append(Evento(None, f"Mano corrida: la mano pasa al "
+                                            f"{nombre_jugador(s.mano)}"))
         s.fase = Fase.DESCARTE
         s.descartes_hechos = 0
         s.turno = s.mano

@@ -62,7 +62,7 @@ def test_vacas_para_ganar():
 
 
 def test_reparto_inicial():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     assert s.fase is Fase.MUS and s.turno == 0
     todas = [c for cartas in s.cartas for c in cartas]
     assert all(len(c) == 4 for c in s.cartas)
@@ -71,7 +71,7 @@ def test_reparto_inicial():
 
 
 def test_las_manos_se_reparten_y_se_reponen_ordenadas():
-    s = nueva_partida(seed=9)
+    s = nueva_partida(mano=0, seed=9)
     assert all(c == ordenar_cartas(c) for c in s.cartas)
     s = jugar(s, Mus(), Mus(), Mus(), Mus())
     for _ in range(4):
@@ -80,12 +80,12 @@ def test_las_manos_se_reparten_y_se_reponen_ordenadas():
 
 
 def test_misma_semilla_mismo_reparto():
-    assert nueva_partida(seed=5).cartas == nueva_partida(seed=5).cartas
-    assert nueva_partida(seed=5).cartas != nueva_partida(seed=6).cartas
+    assert nueva_partida(mano=0, seed=5).cartas == nueva_partida(mano=0, seed=5).cartas
+    assert nueva_partida(mano=0, seed=5).cartas != nueva_partida(mano=0, seed=6).cartas
 
 
 def test_todos_mus_lleva_a_descartes_y_vuelve_al_mus():
-    s = jugar(nueva_partida(seed=3), Mus(), Mus(), Mus())
+    s = jugar(nueva_partida(mano=0, seed=3), Mus(), Mus(), Mus())
     assert s.fase is Fase.MUS and s.turno == 3
     s = apply(s, Mus())
     assert s.fase is Fase.DESCARTE and s.turno == 0
@@ -107,7 +107,7 @@ def test_los_descartes_solo_se_barajan_cuando_se_acaba_el_mazo():
     Los descartes no vuelven al mazo hasta que se acaba; entonces se barajan solo los
     descartes (nunca las cartas en mano).
     """
-    s = nueva_partida(seed=4)
+    s = nueva_partida(mano=0, seed=4)
     for ronda in range(4):
         s = jugar(s, Mus(), Mus(), Mus(), Mus())
         for _ in range(4):
@@ -134,7 +134,7 @@ def test_si_el_mazo_se_acaba_a_mitad_se_barajan_todos_los_descartes():
     los suyos de ahora) y roba las 2 que le faltan."""
     le_vuelve_alguna = False
     for seed in range(20):
-        s = jugar(nueva_partida(seed=seed), Mus(), Mus(), Mus(), Mus())
+        s = jugar(nueva_partida(mano=0, seed=seed), Mus(), Mus(), Mus(), Mus())
         resto = list(s.baraja.mazo)
         s.baraja.mazo, s.baraja.descartes = resto[:1], resto[1:3]  # 1 en el mazo, 2 tiradas
         ultima_del_mazo, antiguas = resto[0], set(resto[1:3])
@@ -148,15 +148,67 @@ def test_si_el_mazo_se_acaba_a_mitad_se_barajan_todos_los_descartes():
     assert le_vuelve_alguna  # sus propias cartas también entran en el barajado
 
 
+# --- Mano corrida (primera mano de la partida) ---
+
+
+def test_la_primera_mano_se_sortea_y_se_corre():
+    empiezan = set()
+    for seed in range(40):
+        s = nueva_partida(seed=seed)
+        assert s.corrida and s.fase is Fase.MUS and s.turno == s.mano
+        assert "mano corrida" in s.historial[0].texto
+        empiezan.add(s.mano)
+    assert empiezan == {0, 1, 2, 3}
+    assert not nueva_partida(mano=0, seed=1).corrida  # con la mano fijada no se corre
+
+
+def test_en_la_mano_corrida_quien_corta_es_mano():
+    s = nueva_partida(seed=0, mano=1, corrida=True)  # empieza el Jugador 2
+    s = apply(s, NoHayMus())
+    assert s.mano == 1 and not s.corrida and s.lance is Lance.GRANDE and s.turno == 1
+    s = nueva_partida(seed=0, mano=1, corrida=True)
+    s = apply(s, Mus())  # el 2 pasa la mano al 3
+    assert s.turno == 2 and s.corrida
+    s = apply(s, NoHayMus())  # el 3 corta: es mano
+    assert s.mano == 2 and not s.corrida and s.turno == 2 and s.lance is Lance.GRANDE
+    assert "Corta el Jugador 3: es mano" in [e.texto for e in s.historial]
+
+
+def test_si_todos_pasan_hay_mus_y_la_mano_corre_un_puesto_mas():
+    s = nueva_partida(seed=0, mano=1, corrida=True)  # empieza el Jugador 2
+    s = jugar(s, Mus(), Mus(), Mus(), Mus())  # pasan 2, 3, 4 y 1
+    assert s.fase is Fase.DESCARTE and s.corrida
+    assert s.mano == 2 and s.turno == 2  # la siguiente ronda empieza en el 3, no en el 2
+    for _ in range(4):
+        s = apply(s, Descarte(frozenset(s.cartas[s.turno][:1])))
+    assert s.fase is Fase.MUS and s.turno == 2 and s.corrida
+    s = jugar(s, Mus(), Mus(), Mus(), Mus())  # vuelven a pasar todos
+    assert s.mano == 3 and s.turno == 3
+    for _ in range(4):
+        s = apply(s, Descarte(frozenset(s.cartas[s.turno][:1])))
+    s = apply(s, Mus())  # el 4 pasa
+    s = apply(s, NoHayMus())  # el 1 corta
+    assert s.mano == 0 and not s.corrida and s.turno == 0
+
+
+def test_despues_de_la_mano_corrida_la_mano_rota_normal():
+    s = nueva_partida(seed=0, mano=1, corrida=True)
+    s = jugar(s, Mus(), NoHayMus())  # corta el 3: es mano
+    while s.numero_mano == 1:
+        s = apply(s, legal_actions(s)[0])
+    assert s.mano == 3 and not s.corrida  # la siguiente mano es del 4
+    assert s.historial[0].texto == "Mano 2: es mano el Jugador 4"
+
+
 def test_descartes_legales_son_de_1_a_4_cartas_propias():
-    s = jugar(nueva_partida(seed=3), Mus(), Mus(), Mus(), Mus())
+    s = jugar(nueva_partida(mano=0, seed=3), Mus(), Mus(), Mus(), Mus())
     legales = legal_actions(s)
     assert len(legales) == 15  # subconjuntos no vacíos de 4 cartas
     assert all(a.cartas <= set(s.cartas[0]) for a in legales)
 
 
 def test_cortar_mus_empieza_la_grande():
-    s = apply(nueva_partida(seed=3), NoHayMus())
+    s = apply(nueva_partida(mano=0, seed=3), NoHayMus())
     assert s.fase is Fase.LANCE and s.lance is Lance.GRANDE and s.turno == 0
 
 
@@ -371,7 +423,7 @@ def test_mejor_de_5_necesita_tres_vacas():
     [Paso(), Quiero(), Envido(), Descarte(frozenset()), None, "mus"],
 )
 def test_accion_ilegal_en_fase_de_mus(accion):
-    s = nueva_partida(seed=2)
+    s = nueva_partida(mano=0, seed=2)
     antes = huella(s)
     with pytest.raises(IllegalActionError):
         apply(s, accion)
@@ -391,7 +443,7 @@ def test_accion_ilegal_en_apuestas(accion):
 
 
 def test_descarte_ilegal():
-    s = jugar(nueva_partida(seed=3), Mus(), Mus(), Mus(), Mus())
+    s = jugar(nueva_partida(mano=0, seed=3), Mus(), Mus(), Mus(), Mus())
     ajena = next(c for c in s.cartas[1] if c not in s.cartas[0])
     antes = huella(s)
     with pytest.raises(IllegalActionError):

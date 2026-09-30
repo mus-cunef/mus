@@ -40,14 +40,14 @@ def test_cada_accion_legal_tiene_su_sitio_en_el_catalogo():
 
 
 def test_cantidades_fuera_del_catalogo_van_a_la_mas_cercana():
-    cartas = nueva_partida(seed=0).cartas[0]
+    cartas = nueva_partida(mano=0, seed=0).cartas[0]
     assert acciones.NOMBRES[acciones.indice(Envido(7), cartas)] == "Envido 6"
     assert acciones.NOMBRES[acciones.indice(Envido(40), cartas)] == "Envido 30"
     assert acciones.NOMBRES[acciones.indice(Reenvido(12), cartas)] == "Reenvido 10"
 
 
 def test_la_mascara_respeta_el_tope_de_40():
-    s = apply(apply(nueva_partida(seed=0), NoHayMus()), Envido(30))
+    s = apply(apply(nueva_partida(mano=0, seed=0), NoHayMus()), Envido(30))
     m = acciones.mascara(legal_actions(s), s.cartas[s.turno])
     nombres = [acciones.NOMBRES[i] for i in np.flatnonzero(m)]
     reenvidos = [n for n in nombres if "Reenvido" in n]
@@ -72,7 +72,7 @@ def test_codificacion_de_tamano_fijo_y_valores_acotados():
 
 def test_la_codificacion_no_depende_de_las_cartas_ajenas():
     """Si se cambian las manos de los demás, lo que ve la red no cambia: no hay trampa."""
-    s = apply(nueva_partida(seed=5), NoHayMus())
+    s = apply(nueva_partida(mano=0, seed=5), NoHayMus())
     base = codificar(observe(s, 0))
     otra = s.copiar()
     otra.cartas[1], otra.cartas[3] = otra.cartas[3], otra.cartas[1]
@@ -81,7 +81,7 @@ def test_la_codificacion_no_depende_de_las_cartas_ajenas():
 
 
 def test_la_codificacion_es_relativa_al_asiento():
-    s = nueva_partida(seed=6)
+    s = nueva_partida(mano=0, seed=6)
     x0 = dict(zip(NOMBRES, codificar(observe(s, 0)), strict=True))
     x1 = dict(zip(NOMBRES, codificar(observe(s, 1)), strict=True))
     assert x0["posicion_desde_mano=0"] == 1 and x1["posicion_desde_mano=1"] == 1
@@ -114,7 +114,7 @@ def test_el_bot_inteligente_juega_partidas_legales():
 
 def test_el_bot_inteligente_explica_su_jugada():
     bot = SmartBot(seed=0)
-    s = nueva_partida(seed=2)
+    s = nueva_partida(mano=0, seed=2)
     bot.choose_action(observe(s, 0), legal_actions(s))
     assert "valor" in bot.razon and "%" in bot.razon
 

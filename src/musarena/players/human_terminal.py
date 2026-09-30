@@ -131,8 +131,13 @@ class HumanTerminalPlayer(Player):
             f" · Vacas A {obs.vacas[0]} - B {obs.vacas[1]} (gana quien llegue a "
             f"{obs.vacas_para_ganar})"
         )
+        if obs.corrida:
+            situacion = (f"Mano corrida: la ronda empieza en el {nombre_jugador(obs.mano)}; quien "
+                         f"corte será mano (pedir mus es pasar la mano).")
+        else:
+            situacion = f"Es mano el {nombre_jugador(obs.mano)}."
         s(f"Eres el {self._quien(obs.asiento)}; tu compañero es el "
-          f"{nombre_jugador(obs.companero)}. Es mano el {nombre_jugador(obs.mano)}.")
+          f"{nombre_jugador(obs.companero)}. {situacion}")
 
         numero, vistos = self._visto
         if numero != obs.numero_mano:

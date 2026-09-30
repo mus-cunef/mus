@@ -18,7 +18,7 @@ def _contiene_carta(obs: Observation, cartas) -> bool:
 
 
 def test_observation_solo_tiene_mis_cartas():
-    s = nueva_partida(seed=11)
+    s = nueva_partida(mano=0, seed=11)
     for asiento in range(4):
         obs = observe(s, asiento)
         assert obs.cartas == tuple(s.cartas[asiento])
@@ -26,14 +26,14 @@ def test_observation_solo_tiene_mis_cartas():
 
 
 def test_no_se_ven_las_cartas_del_companero_durante_los_lances():
-    s = apply(nueva_partida(seed=12), NoHayMus())
+    s = apply(nueva_partida(mano=0, seed=12), NoHayMus())
     obs = observe(s, 0)
     assert not _contiene_carta(obs, s.cartas[2])
     assert not _contiene_carta(obs, _cartas_ajenas(s, 0))
 
 
 def test_los_descartes_ajenos_no_se_ven():
-    s = nueva_partida(seed=13)
+    s = nueva_partida(mano=0, seed=13)
     for _ in range(4):
         s = apply(s, Mus())
     tiradas = list(s.cartas[0][:2])
@@ -44,7 +44,7 @@ def test_los_descartes_ajenos_no_se_ven():
 
 
 def test_cada_uno_recuerda_sus_descartes_mientras_siguen_en_la_pila():
-    s = jugar_mus(nueva_partida(seed=13))
+    s = jugar_mus(nueva_partida(mano=0, seed=13))
     tiradas = list(s.cartas[0][:2])
     s = apply(s, Descarte(frozenset(tiradas)))
     assert set(observe(s, 0).mis_descartes) == set(tiradas)
@@ -62,7 +62,7 @@ def jugar_mus(s):
 
 
 def test_la_observacion_no_expone_el_estado():
-    s = nueva_partida(seed=14)
+    s = nueva_partida(mano=0, seed=14)
     obs = observe(s, 0)
     nombres = {f.name for f in dataclasses.fields(obs)}
     assert not nombres & {"baraja", "rng", "mazo"}
@@ -82,9 +82,16 @@ def test_en_ningun_momento_de_una_partida_se_filtran_cartas_ajenas():
 
 
 def test_al_final_de_la_mano_se_ensenan_las_cuatro_manos():
-    s = apply(nueva_partida(seed=15), NoHayMus())
+    s = apply(nueva_partida(mano=0, seed=15), NoHayMus())
     cartas = [tuple(c) for c in s.cartas]
     while not s.manos_jugadas:
         s = apply(s, Paso())
     assert s.manos_jugadas[0].cartas == tuple(cartas)
     assert observe(s, 1).manos_jugadas[0].cartas == tuple(cartas)
+
+
+def test_la_observacion_indica_la_mano_corrida():
+    s = nueva_partida(seed=3)
+    assert all(observe(s, a).corrida for a in range(4))
+    s = apply(s, NoHayMus())
+    assert not observe(s, 0).corrida and observe(s, 0).mano == s.mano

@@ -90,7 +90,7 @@ def test_un_bot_tramposo_no_corrompe_la_partida():
         def choose_action(self, observation, legal_actions):
             return Quiero()  # casi nunca es legal en la fase de mus
 
-    match = Match([Tramposo(), *[JugadorAleatorio(seed=i) for i in range(3)]], seed=1)
+    match = Match([Tramposo() for _ in range(4)], seed=1)  # hable quien hable primero
     antes = match.state
     with pytest.raises(IllegalActionError):
         match.step()

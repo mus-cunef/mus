@@ -63,6 +63,9 @@ class Observation:
     #: Cartas que tiré en esta mano y siguen en la pila de descartes (nadie las tiene). Si se
     #: rebarajan vuelven al mazo y dejan de estar aquí.
     mis_descartes: tuple[Carta, ...] = ()
+    #: Primera mano de la partida con la mano corrida: ``mano`` es quien empieza la ronda de mus
+    #: y será la mano quien corte (``docs/reglas.md``, punto 3.6).
+    corrida: bool = False
 
     @property
     def pareja(self) -> int:
@@ -124,4 +127,5 @@ def observe(
         chat=tuple(chat),
         ganador=state.ganador,
         mis_descartes=tuple(c for c in state.tiradas[asiento] if c in state.baraja.descartes),
+        corrida=state.corrida,
     )

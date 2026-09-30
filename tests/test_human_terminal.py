@@ -26,7 +26,7 @@ def _elegir(estado, respuestas, asiento=None):
 
 
 def test_muestra_las_cartas_con_su_nombre():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     _, salida = _elegir(s, ["1"])
     texto = "\n".join(salida)
     for carta in s.cartas[0]:
@@ -36,20 +36,20 @@ def test_muestra_las_cartas_con_su_nombre():
 
 
 def test_elegir_por_numero():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     assert _elegir(s, ["1"])[0] == Mus()
     assert _elegir(s, ["2"])[0] == NoHayMus()
 
 
 def test_entrada_no_valida_vuelve_a_preguntar():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     accion, salida = _elegir(s, ["", "hola", "0", "-1", "9", "2"])
     assert accion == NoHayMus()
     assert sum("Escribe un número" in linea for linea in salida) == 5
 
 
 def _en_grande():
-    return apply(nueva_partida(seed=1), NoHayMus())
+    return apply(nueva_partida(mano=0, seed=1), NoHayMus())
 
 
 def test_menu_de_apuestas():
@@ -75,7 +75,7 @@ def test_reenvido_limitado_por_el_total_de_40():
 
 
 def test_descarte_por_numeros():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     for _ in range(4):
         s = apply(s, Mus())
     accion, _ = _elegir(s, ["", "5", "1 3"])
@@ -92,7 +92,7 @@ def test_chat_desde_la_terminal():
 
 
 def test_aviso_de_turno_con_pausa():
-    s = nueva_partida(seed=1)
+    s = nueva_partida(mano=0, seed=1)
     preguntas: list[str] = []
     respuestas = iter(["", "1"])
 
@@ -158,7 +158,7 @@ def test_contra_bots_solo_se_ven_sus_acciones_y_las_cartas_al_final(seed):
     humano = _HumanoVigilado()
     bots = [crear_jugador(tipo, seed=seed * 3 + i)
             for i, tipo in enumerate(["reglas", "random", "reglas"])]
-    match = Match([humano, *bots], seed=seed)
+    match = Match([humano, *bots], mejor_de=5, seed=seed)  # larga: el humano llega a hablar
     humano.match = match
     match.play(max_turnos=50_000)
     assert humano.turnos > 0 and humano.manos == len(match.state.manos_jugadas)

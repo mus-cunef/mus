@@ -114,6 +114,11 @@ Principios:
 - **Regla de la baraja**: los descartes se apartan y no se barajan mientras quede mazo. Si el
   mazo se acaba a mitad de un robo, se barajan todos los descartes, también los que acaba de
   tirar ese jugador (`docs/reglas.md`, punto 3.4).
+- **Mano corrida** en la primera mano de la partida: se sortea quién empieza y la mano se corre
+  (pedir mus es pasar la mano) hasta que alguien corta, que es la mano. Si pasan los cuatro hay
+  mus y la mano corre un puesto más (`docs/reglas.md`, punto 3.6). `nueva_partida()` lo hace por
+  defecto; con `nueva_partida(mano=k)` la mano queda fijada (útil en tests). No cambia las
+  probabilidades, así que los bots no se tocaron.
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
