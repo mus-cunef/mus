@@ -159,3 +159,39 @@ def test_generar_datos_y_entrenar(tmp_path):
     with torch.no_grad():
         logits2, _ = otra(x, m)
     assert torch.allclose(logits, logits2, atol=1e-5)
+
+
+def test_ventajas_gae():
+    pytest.importorskip("torch")
+    from musarena.ia.entrenamiento.refuerzo import ventajas
+
+    valores = np.array([0.0, 0.5, -0.5], dtype=np.float32)
+    # Con lambda = 1 la ventaja es la recompensa final menos lo que esperaba la red.
+    v, r = ventajas(valores, 1.0, lam=1.0)
+    assert np.allclose(v, 1.0 - valores) and np.allclose(r, 1.0)
+    # Con lambda = 0 solo mira el paso siguiente.
+    v, _ = ventajas(valores, -1.0, lam=0.0)
+    assert np.allclose(v, [0.5, -1.0, -0.5])
+
+
+def test_jugar_y_actualizar_con_ppo():
+    torch = pytest.importorskip("torch")
+    from musarena.ia.entrenamiento import refuerzo
+
+    red = Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(32,))
+    for rival in ("yo", "random", red):
+        b = refuerzo.jugar((red, rival, "prueba", 2, 7, 3, 0.95))
+        n = len(b["accion"])
+        assert n > 0 and b["x"].shape == (n, N_ENTRADAS)
+        assert len(b["ventaja"]) == len(b["retorno"]) == len(b["logp"]) == n
+        assert b["mascara"][np.arange(n), b["accion"]].all()  # solo jugadas legales
+        assert (b["logp"] <= 0).all()
+    modelo = refuerzo.RedTorch.desde_numpy(red)
+    ancla = refuerzo.RedTorch.desde_numpy(red).eval()
+    antes = [p.detach().clone() for p in modelo.parameters()]
+    cfg = refuerzo.Config(lote=256, epocas=1)
+    optimizador = torch.optim.Adam(modelo.parameters(), lr=1e-3)
+    metricas = refuerzo.actualizar(modelo, ancla, optimizador, b, cfg,
+                                   np.random.default_rng(0))
+    assert {"politica", "valor", "entropia", "ancla", "kl"} <= set(metricas)
+    assert any(not torch.equal(a, p) for a, p in zip(antes, modelo.parameters(), strict=True))
