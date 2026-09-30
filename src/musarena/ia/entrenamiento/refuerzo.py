@@ -10,8 +10,20 @@ Parte de la red de imitación y repite este ciclo:
    - ``historico``: una versión anterior de la red, para no olvidar cómo ganar a estilos viejos;
    - los estilos de ``reglas``, para no perder contra el heurístico mientras se explora.
 
-2. **Premiar**. Cada decisión recibe al final +1 si su pareja ganó la vaca y -1 si la perdió.
-   La cabeza de **valor** estima ese resultado en cada momento y, con GAE (*generalized
+2. **Premiar**. La recompensa principal es +1 si su pareja ganó la vaca y -1 si la perdió.
+   Se le pueden sumar recompensas intermedias al final de cada mano (ver
+   :data:`RECOMPENSAS`):
+
+   - ``tantos``: la diferencia de tantos ganados en la mano (denso, pero cambia un poco el
+     objetivo: premia sumar tantos aunque no ayuden a ganar la vaca);
+   - ``potencial``: cuánto sube o baja la probabilidad de ganar la vaca con el marcador
+     (*potential-based shaping*: da señal en cada mano y **no cambia** cuál es la mejor
+     estrategia, porque la suma de todas estas recompensas en una vaca es cero);
+   - ``farol``: un premio por ganar un lance con "no quiero" teniendo una mano floja, y el
+     castigo contrario a la pareja engañada. Cambia el objetivo a propósito: puede enseñar a
+     farolear más de lo que conviene, por eso se mide.
+
+   La cabeza de **valor** estima la recompensa que falta por llegar y, con GAE (*generalized
    advantage estimation*), se calcula la **ventaja** de cada jugada: cuánto mejor (o peor) fue
    la situación después de jugarla de lo que la red esperaba.
 
@@ -51,6 +63,8 @@ import torch
 
 from musarena.actions import Action
 from musarena.arena import enfrentar
+from musarena.estrategia.evaluacion import prob_vaca
+from musarena.estrategia.tipos import FUERZA, indice_de
 from musarena.ia import acciones
 from musarena.ia.codificacion import codificar
 from musarena.ia.entrenamiento.imitacion import RedTorch
@@ -60,7 +74,7 @@ from musarena.observation import Observation
 from musarena.player import Bot, Player
 from musarena.players import SmartBot, crear_jugador
 from musarena.players.smart_bot import MODELO_POR_DEFECTO
-from musarena.state import pareja
+from musarena.state import TANTOS_VACA, ResumenMano, pareja
 
 #: Rivales de la liga y con qué frecuencia se elige cada uno.
 LIGA: dict[str, float] = {
@@ -93,6 +107,10 @@ class Config:
     evaluar_cada: int = 10
     partidas_evaluacion: int = 400
     seed: int = 0
+    recompensa: str = "vaca"     # "vaca", o "vaca+tantos", "vaca+potencial+farol"...
+    coef_tantos: float = 0.5     # peso de la diferencia de tantos (40 tantos = 1)
+    bonus_farol: float = 0.1     # premio por farol ganado
+    umbral_farol: float = 0.4    # "mano floja": probabilidad de ganar el lance menor que esto
     liga: dict[str, float] = field(default_factory=lambda: dict(LIGA))
 
 
@@ -108,8 +126,8 @@ class Aprendiz(Bot):
         super().__init__("aprendiz", seed)
         self.red = red
         self.azar = np.random.default_rng(seed)
-        # (x, máscara, acción, log-probabilidad, valor estimado, número de vaca)
-        self.registro: list[tuple[np.ndarray, np.ndarray, int, float, float, int]] = []
+        # (x, máscara, acción, log-probabilidad, valor estimado, número de vaca, de mano)
+        self.registro: list[tuple[np.ndarray, np.ndarray, int, float, float, int, int]] = []
 
     def choose_action(self, observation: Observation, legal_actions: Sequence[Action]) -> Action:
         mascara = acciones.mascara(legal_actions, observation.cartas)
@@ -118,23 +136,71 @@ class Aprendiz(Bot):
         acumulada = np.cumsum(p, dtype=np.float64)
         i = int(np.searchsorted(acumulada, self.azar.random() * acumulada[-1], side="right"))
         i = min(i, len(p) - 1)
-        self.registro.append((x, mascara, i, float(np.log(p[i])), v, sum(observation.vacas)))
+        self.registro.append((x, mascara, i, float(np.log(p[i])), v, sum(observation.vacas),
+                              len(observation.manos_jugadas)))
         return acciones.accion(i, observation.cartas)
 
 
-def ventajas(valores: np.ndarray, recompensa: float, lam: float) -> tuple[np.ndarray, np.ndarray]:
-    """GAE de las decisiones de un jugador en una vaca, con la recompensa solo al final.
+#: Tipos de recompensa que se pueden combinar con "+" (``"vaca+potencial"``).
+RECOMPENSAS: tuple[str, ...] = ("vaca", "tantos", "potencial", "farol")
 
-    Devuelve (ventaja, retorno) de cada decisión. Con ``lam=1`` la ventaja es simplemente
-    ``recompensa - valor``; con ``lam`` menor se apoya más en las estimaciones de la red
-    (menos ruido, algo más de sesgo).
+
+def recompensas_por_mano(manos: Sequence[ResumenMano], cfg: Config
+                         ) -> list[tuple[int, tuple[float, float]]]:
+    """Recompensa intermedia de cada pareja en cada mano: ``(vaca, (pareja 0, pareja 1))``.
+
+    La de ganar o perder la vaca no está aquí: se suma aparte, al final de cada vaca.
+    """
+    tipos = set(cfg.recompensa.split("+"))
+    if not tipos <= set(RECOMPENSAS) or "vaca" not in tipos:
+        raise ValueError(f"Recompensa desconocida {cfg.recompensa!r}: combina "
+                         f"{', '.join(RECOMPENSAS)} con '+', siempre con 'vaca'")
+    salida = []
+    vaca, marcador = 0, [0, 0]
+    for m in manos:
+        ganados = [0, 0]
+        for c in m.cobros:
+            ganados[c.pareja] += c.tantos
+        r0 = 0.0  # recompensa de la pareja 0; la de la pareja 1 es la contraria
+        if "tantos" in tipos:
+            r0 += cfg.coef_tantos * max(-1.0, min(1.0, (ganados[0] - ganados[1]) / TANTOS_VACA))
+        if "potencial" in tipos:
+            antes = 2 * prob_vaca(*marcador) - 1
+            despues = 0.0 if m.ganador_vaca is not None else 2 * prob_vaca(
+                min(TANTOS_VACA, marcador[0] + ganados[0]),
+                min(TANTOS_VACA, marcador[1] + ganados[1])) - 1
+            r0 += despues - antes
+        if "farol" in tipos:
+            for c in m.cobros:
+                if c.motivo != "no quiero" or c.lance is None:
+                    continue
+                fuerza = max(FUERZA[c.lance][indice_de(m.cartas[s])]
+                             for s in range(4) if pareja(s) == c.pareja)
+                if fuerza < cfg.umbral_farol:
+                    r0 += cfg.bonus_farol if c.pareja == 0 else -cfg.bonus_farol
+        salida.append((vaca, (r0, -r0)))
+        if m.ganador_vaca is not None:
+            vaca, marcador = vaca + 1, [0, 0]
+        else:
+            marcador = [marcador[0] + ganados[0], marcador[1] + ganados[1]]
+    return salida
+
+
+def ventajas(valores: np.ndarray, recompensas: np.ndarray, lam: float
+             ) -> tuple[np.ndarray, np.ndarray]:
+    """GAE de las decisiones de un jugador en una vaca.
+
+    ``recompensas[t]`` es lo que recibe entre la decisión ``t`` y la siguiente (la última
+    incluye el resultado de la vaca). Devuelve (ventaja, retorno) de cada decisión. Con
+    ``lam=1`` la ventaja es la recompensa que llegó menos la que esperaba la red; con ``lam``
+    menor se apoya más en las estimaciones de la red (menos ruido, algo más de sesgo).
     """
     n = len(valores)
     ventaja = np.zeros(n, dtype=np.float32)
     acumulado = 0.0
     for t in range(n - 1, -1, -1):
-        siguiente = recompensa if t == n - 1 else valores[t + 1]
-        delta = siguiente - valores[t]
+        siguiente = valores[t + 1] if t < n - 1 else 0.0
+        delta = recompensas[t] + siguiente - valores[t]
         acumulado = delta + lam * acumulado
         ventaja[t] = acumulado
     return ventaja, ventaja + valores.astype(np.float32)
@@ -155,9 +221,9 @@ def _mesa(red: Red, rival: str | Red, seed: int, aprendiz_en: int) -> list[Playe
     return mesa
 
 
-def jugar(args: tuple[Red, str | Red, str, int, int, int, float]) -> dict:
+def jugar(args: tuple[Red, str | Red, str, int, int, Config]) -> dict:
     """Juega ``partidas`` partidas contra un rival y devuelve los ejemplos para PPO."""
-    red, rival, nombre, partidas, seed, mejor_de, lam = args
+    red, rival, nombre, partidas, seed, cfg = args
     rng = random.Random(seed)
     columnas: dict[str, list] = {k: [] for k in ("x", "mascara", "accion", "logp", "ventaja",
                                                  "retorno")}
@@ -165,20 +231,29 @@ def jugar(args: tuple[Red, str | Red, str, int, int, int, float]) -> dict:
     for n in range(partidas):
         aprendiz_en = n % 2
         mesa = _mesa(red, rival, rng.randrange(2**32), aprendiz_en)
-        match = Match(mesa, mejor_de=mejor_de, seed=rng.randrange(2**32))
+        match = Match(mesa, mejor_de=cfg.mejor_de, seed=rng.randrange(2**32))
         victorias += match.play() == aprendiz_en
-        ganadoras = [m.ganador_vaca for m in match.state.manos_jugadas
-                     if m.ganador_vaca is not None]
+        manos = match.state.manos_jugadas
+        ganadoras = [m.ganador_vaca for m in manos if m.ganador_vaca is not None]
+        por_mano = recompensas_por_mano(manos, cfg)
         for asiento, jugador in enumerate(mesa):
             if not isinstance(jugador, Aprendiz) or not jugador.registro:
                 continue
             reg = jugador.registro
+            p = pareja(asiento)
             vacas = np.array([r[5] for r in reg])
+            numeros = np.array([r[6] for r in reg])
             valores = np.array([r[4] for r in reg], dtype=np.float32)
             for vaca in np.unique(vacas):
                 idx = np.flatnonzero(vacas == vaca)
-                recompensa = 1.0 if ganadoras[vaca] == pareja(asiento) else -1.0
-                ventaja, retorno = ventajas(valores[idx], recompensa, lam)
+                recompensas = np.zeros(len(idx), dtype=np.float32)
+                # Lo de cada mano va a la última decisión tomada antes de que acabara.
+                for h, (vaca_h, r) in enumerate(por_mano):
+                    j = int(np.searchsorted(numeros[idx], h, side="right")) - 1
+                    if vaca_h == vaca and j >= 0 and r[p]:
+                        recompensas[j] += r[p]
+                recompensas[-1] += 1.0 if ganadoras[vaca] == p else -1.0
+                ventaja, retorno = ventajas(valores[idx], recompensas, cfg.gae_lambda)
                 columnas["ventaja"].append(ventaja)
                 columnas["retorno"].append(retorno)
             columnas["x"].extend(r[0] for r in reg)
@@ -307,8 +382,7 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
                 nombre = azar.choices(rivales, weights=pesos)[0]
                 rival: str | Red = azar.choice(historico) if nombre == "historico" else nombre
                 n = cfg.partidas // trozos + (k < cfg.partidas % trozos)
-                tareas.append((red, rival, nombre, n, azar.randrange(2**32), cfg.mejor_de,
-                               cfg.gae_lambda))
+                tareas.append((red, rival, nombre, n, azar.randrange(2**32), cfg))
             lotes = list(ex.map(jugar, tareas))
             datos = {k: np.concatenate([b[k] for b in lotes]) for k in
                      ("x", "mascara", "accion", "logp", "ventaja", "retorno")}
@@ -359,7 +433,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--inicial", default=str(MODELO_POR_DEFECTO))
     parser.add_argument("--salida", default="checkpoints/refuerzo")
     for nombre, valor in asdict(Config()).items():
-        if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        if isinstance(valor, (int, float, str)) and not isinstance(valor, bool):
             parser.add_argument(f"--{nombre.replace('_', '-')}", type=type(valor), default=valor)
     parser.add_argument("--procesos", type=int, default=None)
     args = parser.parse_args(argv)
