@@ -1,18 +1,22 @@
 """Creencias: qué mano puede tener cada uno de los otros tres jugadores.
 
 Para cada jugador se guarda una **probabilidad para cada uno de los 330 tipos de mano**. Se
-parte de la baraja sin las cartas propias y se va corrigiendo con todo lo que se ve en la mesa
-(inferencia bayesiana: se multiplica por la verosimilitud de lo observado y se normaliza):
+parte de la baraja sin las cartas propias (ni las que tiré yo y siguen en los descartes) y se va
+corrigiendo con todo lo que se ve en la mesa (inferencia bayesiana: se multiplica por la
+verosimilitud de lo observado y se normaliza):
 
 1. **Declaraciones** de pares y de juego: son obligatorias y verdaderas, así que eliminan los
    tipos incompatibles.
-2. **Mus**: en la última ronda de mus, quien corta suele tener buena mano y quien pide mus,
+2. **Descartes**: tras descartarse, la mano ya no es una mano al azar (cada uno se queda lo
+   bueno), y cuantas menos cartas tira, mejor suele ser. Se usa la tabla medida de
+   :mod:`~musarena.estrategia.descartes` con el último descarte de cada jugador.
+3. **Mus**: en la última ronda de mus, quien corta suele tener buena mano y quien pide mus,
    mala.
-3. **Apuestas**: envidar, reenvidar o echar órdago hace más probables las manos fuertes en ese
+4. **Apuestas**: envidar, reenvidar o echar órdago hace más probables las manos fuertes en ese
    lance; pasar o no querer, las débiles; querer, las medianas y fuertes (y más fuertes cuanto
    mayor era la apuesta).
 
-Los pasos 2 y 3 no son seguros (hay faroles y jugadas lentas), por eso se modelan con una
+Los pasos 3 y 4 no son seguros (hay faroles y jugadas lentas), por eso se modelan con una
 **verosimilitud suave**: una curva logística de la fuerza de la mano con un suelo de farol. Los
 parámetros están en :class:`ModeloRival`.
 
@@ -29,6 +33,7 @@ from functools import lru_cache
 import numpy as np
 
 from musarena.actions import Envido, Mus, NoHayMus, NoQuiero, Ordago, Paso, Quiero, Reenvido
+from musarena.estrategia.descartes import FACTOR_DESCARTE
 from musarena.estrategia.tipos import (
     FUERZA,
     N_NIVELES,
@@ -57,6 +62,7 @@ class ModeloRival:
     paso_con_mano: float = 0.35  # probabilidad de pasar con mano muy buena (para querer)
     centro_corte: float = 0.62  # percentil de mano a partir del cual se suele cortar el mus
     escala_corte: float = 0.10
+    usar_descartes: bool = True  # False: como antes, sin la tabla de descartes (para medir)
 
 
 def _logistica(x: np.ndarray) -> np.ndarray:
@@ -135,6 +141,16 @@ def ronda_de_mus(historial: Sequence[Evento]) -> list[Evento]:
     return ronda
 
 
+def ultimos_descartes(historial: Sequence[Evento]) -> dict[int, int]:
+    """De cuántas cartas se descartó cada jugador la última vez en esta mano."""
+    ultimos: dict[int, int] = {}
+    for evento in historial:
+        if evento.asiento is not None and evento.accion is None \
+                and evento.texto.startswith("Se descarta de "):
+            ultimos[evento.asiento] = int(evento.texto.split()[3])
+    return ultimos
+
+
 class Creencias:
     """Distribución de probabilidad sobre el tipo de mano de cada uno de los otros jugadores."""
 
@@ -159,7 +175,8 @@ class Creencias:
         """
         modelo = modelo or ModeloRival()
         modelos = modelos or {}
-        base = pesos_sin(obs.cartas)
+        conocidas = (*obs.cartas, *obs.mis_descartes) if modelo.usar_descartes else obs.cartas
+        base = pesos_sin(conocidas)
         otros = [a for a in range(4) if a != obs.asiento]
         w = {a: base.copy() for a in otros}
 
@@ -170,13 +187,18 @@ class Creencias:
                 for a in otros:
                     w[a] *= tiene == declaracion[a]
 
-        # 2. Última ronda de mus (restricción suave).
+        # 2. Último descarte de cada jugador (medido).
+        for a, n in ultimos_descartes(obs.historial).items():
+            if a in w and modelo.usar_descartes:
+                w[a] *= FACTOR_DESCARTE[n]
+
+        # 3. Última ronda de mus (restricción suave).
         for evento in ronda_de_mus(obs.historial):
             if evento.asiento in w:
                 m = modelos.get(evento.asiento, modelo)
                 w[evento.asiento] *= verosimilitud_mus(isinstance(evento.accion, NoHayMus), m)
 
-        # 3. Apuestas de cada lance (restricción suave).
+        # 4. Apuestas de cada lance (restricción suave).
         faltan = TANTOS_VACA - max(obs.tantos)
         ordago_en: set[Lance] = set()
         apostado: dict[Lance, int] = {}

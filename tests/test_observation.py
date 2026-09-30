@@ -43,6 +43,24 @@ def test_los_descartes_ajenos_no_se_ven():
     assert "2 cartas" in obs.historial[-1].texto
 
 
+def test_cada_uno_recuerda_sus_descartes_mientras_siguen_en_la_pila():
+    s = jugar_mus(nueva_partida(seed=13))
+    tiradas = list(s.cartas[0][:2])
+    s = apply(s, Descarte(frozenset(tiradas)))
+    assert set(observe(s, 0).mis_descartes) == set(tiradas)
+    assert observe(s, 1).mis_descartes == ()
+    # Si se rebarajan (el mazo se acaba), vuelven al mazo y ya no se sabe dónde están.
+    s.baraja.mazo = []
+    s = apply(s, Descarte(frozenset(s.cartas[1][:1])))
+    assert observe(s, 0).mis_descartes == ()
+
+
+def jugar_mus(s):
+    for _ in range(4):
+        s = apply(s, Mus())
+    return s
+
+
 def test_la_observacion_no_expone_el_estado():
     s = nueva_partida(seed=14)
     obs = observe(s, 0)

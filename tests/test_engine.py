@@ -101,6 +101,53 @@ def test_todos_mus_lleva_a_descartes_y_vuelve_al_mus():
     assert len(set(todas)) == 16
 
 
+def test_los_descartes_solo_se_barajan_cuando_se_acaba_el_mazo():
+    """Varias rondas de mus tirando las cuatro cartas: el mazo (24) se acaba en la segunda.
+
+    Los descartes no vuelven al mazo hasta que se acaba; entonces se barajan solo los
+    descartes (nunca las cartas en mano).
+    """
+    s = nueva_partida(seed=4)
+    for ronda in range(4):
+        s = jugar(s, Mus(), Mus(), Mus(), Mus())
+        for _ in range(4):
+            asiento = s.turno
+            tiradas = set(s.cartas[asiento])
+            mazo_antes = len(s.baraja.mazo)
+            descartes_antes = list(s.baraja.descartes)
+            s = apply(s, Descarte(frozenset(tiradas)))
+            if mazo_antes >= 4:  # hay mazo: los descartes se acumulan aparte
+                assert not tiradas & set(s.cartas[asiento])
+                assert len(s.baraja.mazo) == mazo_antes - 4
+                assert s.baraja.descartes[:len(descartes_antes)] == descartes_antes
+                assert set(s.baraja.descartes[len(descartes_antes):]) == tiradas
+            en_mano = [c for cartas in s.cartas for c in cartas]
+            todas = en_mano + s.baraja.mazo + s.baraja.descartes
+            assert len(todas) == len(set(todas)) == 40  # ninguna carta se pierde ni se repite
+            assert not set(en_mano) & set(s.baraja.mazo + s.baraja.descartes)
+        if ronda == 0:
+            assert len(s.baraja.mazo) == 8 and len(s.baraja.descartes) == 16
+
+
+def test_si_el_mazo_se_acaba_a_mitad_se_barajan_todos_los_descartes():
+    """Se descarta de 3 y queda 1 carta: la roba, se barajan todos los descartes (incluidos
+    los suyos de ahora) y roba las 2 que le faltan."""
+    le_vuelve_alguna = False
+    for seed in range(20):
+        s = jugar(nueva_partida(seed=seed), Mus(), Mus(), Mus(), Mus())
+        resto = list(s.baraja.mazo)
+        s.baraja.mazo, s.baraja.descartes = resto[:1], resto[1:3]  # 1 en el mazo, 2 tiradas
+        ultima_del_mazo, antiguas = resto[0], set(resto[1:3])
+        guardada, *tiradas = s.cartas[0]
+        s = apply(s, Descarte(frozenset(tiradas)))
+        nuevas = set(s.cartas[0]) - {guardada}
+        assert ultima_del_mazo in nuevas
+        assert nuevas - {ultima_del_mazo} <= antiguas | set(tiradas)
+        assert len(s.baraja.mazo) == 3 and s.baraja.descartes == []
+        le_vuelve_alguna |= bool(nuevas & set(tiradas))
+    assert le_vuelve_alguna  # sus propias cartas también entran en el barajado
+
+
 def test_descartes_legales_son_de_1_a_4_cartas_propias():
     s = jugar(nueva_partida(seed=3), Mus(), Mus(), Mus(), Mus())
     legales = legal_actions(s)

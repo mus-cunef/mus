@@ -139,6 +139,7 @@ class State:
     cartas: list[list[Carta]] = field(default_factory=lambda: [[], [], [], []])
     mus_pedidos: int = 0
     descartes_hechos: int = 0
+    tiradas: list[list[Carta]] = field(default_factory=lambda: [[], [], [], []])  # en la mano
     lances_pendientes: list[Lance] = field(default_factory=list)
     lance: Lance | None = None
     apuesta: Apuesta | None = None
@@ -174,6 +175,7 @@ class State:
             cartas=[list(c) for c in self.cartas],
             mus_pedidos=self.mus_pedidos,
             descartes_hechos=self.descartes_hechos,
+            tiradas=[list(t) for t in self.tiradas],
             lances_pendientes=list(self.lances_pendientes),
             lance=self.lance,
             apuesta=self.apuesta.copiar() if self.apuesta else None,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +17,12 @@ from musarena.player import Bot
 
 #: Modelo que se usa si no se indica otro.
 MODELO_POR_DEFECTO = Path(__file__).resolve().parent.parent / "ia" / "modelos" / "inteligente.npz"
+
+
+@lru_cache(maxsize=8)
+def _cargar(ruta: Path) -> Red:
+    """Carga un modelo una sola vez aunque se creen muchos bots (la red no se modifica)."""
+    return Red.cargar(ruta)
 
 
 class SmartBot(Bot):
@@ -37,7 +44,7 @@ class SmartBot(Bot):
         temperatura: float = 0.0,
     ) -> None:
         super().__init__(nombre, seed)
-        red = modelo if isinstance(modelo, Red) else Red.cargar(modelo or MODELO_POR_DEFECTO)
+        red = modelo if isinstance(modelo, Red) else _cargar(Path(modelo or MODELO_POR_DEFECTO))
         if red.n_entradas != N_ENTRADAS:
             raise ValueError(
                 f"El modelo espera {red.n_entradas} entradas y la codificación tiene "

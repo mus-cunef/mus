@@ -29,7 +29,11 @@ después en el código y los tests.
 2. Empezando por la mano, cada jugador dice **"mus"** o **"no hay mus"** (cortar).
 3. Si **los cuatro** dicen mus, cada jugador descarta **de 1 a 4 cartas** y roba otras tantas.
    Se vuelve al paso 2.
-4. Si el mazo se acaba, se barajan los **descartes** (nunca las cartas en mano) y se sigue robando.
+4. Los descartes se apartan en una pila y **no se barajan mientras quede mazo**. Si el mazo se
+   acaba, se barajan **todos los descartes** (los de rondas anteriores y los de esta, incluidos
+   los que acaba de tirar el jugador que está robando; nunca las cartas en mano) y se sigue
+   robando. Ejemplo: el último jugador se descarta de 3 y en el mazo queda 1 carta; roba esa
+   carta, se barajan todos los descartes y roba las 2 que le faltan.
 5. En cuanto alguien corta, empiezan los lances.
 
 ## 4. Lances

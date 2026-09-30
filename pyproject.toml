@@ -25,8 +25,8 @@ mus-arena = "musarena.arena:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# Los pesos entrenados del bot inteligente viajan con el paquete.
-musarena = ["ia/modelos/*.npz"]
+# Los pesos entrenados del bot inteligente y la tabla medida de descartes viajan con el paquete.
+musarena = ["ia/modelos/*.npz", "estrategia/*.npz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

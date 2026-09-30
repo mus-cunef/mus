@@ -119,6 +119,20 @@ def test_el_bot_inteligente_explica_su_jugada():
     assert "valor" in bot.razon and "%" in bot.razon
 
 
+def test_el_bot_inteligente_con_un_modelo_por_ruta(tmp_path):
+    ruta = tmp_path / "otro.npz"
+    Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(16,)).guardar(ruta)
+    bot = crear_jugador(f"inteligente:{ruta}", seed=0)
+    assert bot.red.info == {"origen": "aleatoria"}
+    with pytest.raises(ValueError):
+        crear_jugador("inteligente:modelo.txt")
+
+
+def test_la_arena_en_paralelo():
+    r = enfrentar("random", "basico", partidas=9, seed=1, procesos=2)
+    assert r.partidas == 9 and 0 <= r.victorias_a <= 9
+
+
 def test_un_modelo_incompatible_se_detecta():
     with pytest.raises(ValueError):
         SmartBot(modelo=Red.aleatoria(N_ENTRADAS + 1, acciones.N_ACCIONES))
@@ -159,3 +173,63 @@ def test_generar_datos_y_entrenar(tmp_path):
     with torch.no_grad():
         logits2, _ = otra(x, m)
     assert torch.allclose(logits, logits2, atol=1e-5)
+
+
+def test_ventajas_gae():
+    pytest.importorskip("torch")
+    from musarena.ia.entrenamiento.refuerzo import ventajas
+
+    valores = np.array([0.0, 0.5, -0.5], dtype=np.float32)
+    # Con lambda = 1 la ventaja es la recompensa final menos lo que esperaba la red.
+    v, r = ventajas(valores, np.array([0.0, 0.0, 1.0]), lam=1.0)
+    assert np.allclose(v, 1.0 - valores) and np.allclose(r, 1.0)
+    # Con lambda = 0 solo mira el paso siguiente.
+    v, _ = ventajas(valores, np.array([0.0, 0.0, -1.0]), lam=0.0)
+    assert np.allclose(v, [0.5, -1.0, -0.5])
+    # Las recompensas intermedias cuentan en el retorno.
+    _, r = ventajas(valores, np.array([0.2, 0.0, 1.0]), lam=1.0)
+    assert np.allclose(r, [1.2, 1.0, 1.0])
+
+
+def test_recompensas_por_mano():
+    pytest.importorskip("torch")
+    from musarena.ia.entrenamiento.refuerzo import Config, recompensas_por_mano
+
+    match = Match([JugadorAleatorio(seed=i) for i in range(4)], seed=11)
+    match.play()
+    manos = match.state.manos_jugadas
+    solo_vaca = recompensas_por_mano(manos, Config())
+    assert len(solo_vaca) == len(manos) and all(r == (0, 0) for _, r in solo_vaca)
+    assert solo_vaca[-1][0] == sum(match.state.vacas) - 1
+    todas = recompensas_por_mano(manos, Config(recompensa="vaca+tantos+potencial+farol"))
+    assert all(r0 == pytest.approx(-r1) for _, (r0, r1) in todas)  # suma cero
+    # El potencial suma cero en cada vaca: no cambia qué estrategia es la mejor.
+    potencial = recompensas_por_mano(manos, Config(recompensa="vaca+potencial"))
+    for vaca in {v for v, _ in potencial}:
+        assert sum(r[0] for v, r in potencial if v == vaca) == pytest.approx(0, abs=1e-9)
+    with pytest.raises(ValueError):
+        recompensas_por_mano(manos, Config(recompensa="tantos"))
+
+
+def test_jugar_y_actualizar_con_ppo():
+    torch = pytest.importorskip("torch")
+    from musarena.ia.entrenamiento import refuerzo
+
+    red = Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(32,))
+    for rival in ("yo", "random", red):
+        cfg = refuerzo.Config(recompensa="vaca+tantos+potencial+farol")
+        b = refuerzo.jugar((red, rival, "prueba", 2, 7, cfg))
+        n = len(b["accion"])
+        assert n > 0 and b["x"].shape == (n, N_ENTRADAS)
+        assert len(b["ventaja"]) == len(b["retorno"]) == len(b["logp"]) == n
+        assert b["mascara"][np.arange(n), b["accion"]].all()  # solo jugadas legales
+        assert (b["logp"] <= 0).all()
+    modelo = refuerzo.RedTorch.desde_numpy(red)
+    ancla = refuerzo.RedTorch.desde_numpy(red).eval()
+    antes = [p.detach().clone() for p in modelo.parameters()]
+    cfg = refuerzo.Config(lote=256, epocas=1)
+    optimizador = torch.optim.Adam(modelo.parameters(), lr=1e-3)
+    metricas = refuerzo.actualizar(modelo, ancla, optimizador, b, cfg,
+                                   np.random.default_rng(0))
+    assert {"politica", "valor", "entropia", "ancla", "kl"} <= set(metricas)
+    assert any(not torch.equal(a, p) for a, p in zip(antes, modelo.parameters(), strict=True))
