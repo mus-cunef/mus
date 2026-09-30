@@ -1,68 +1,48 @@
-# --- Python ---
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-
-# Packaging / build
 build/
 dist/
 *.egg-info/
-.eggs/
-wheels/
-pip-wheel-metadata/
 
-# Virtual environments
+# Entornos virtuales
 .venv/
 venv/
-env/
-ENV/
 
-# Tests / coverage / linters
+# Tests
 .pytest_cache/
 .coverage
-.coverage.*
 htmlcov/
-coverage.xml
 .mypy_cache/
 .ruff_cache/
-.tox/
-.hypothesis/
 
-# Jupyter
-.ipynb_checkpoints/
-
-# --- Documentation (MkDocs) ---
+# Documentación
 site/
 
-# --- Web (bundle generado para Pyodide) ---
+# Web
 web/py.zip
 
-# --- Entrenamiento de bots (modelos y logs pesados) ---
+# Modelos de bots entrenados y datos de entrenamiento
+# (el modelo que se publica va en src/musarena/ia/modelos/, que sí se sube)
 checkpoints/
 datos/
 runs/
-wandb/
 *.pt
 *.pth
 *.ckpt
-# Si un modelo entrenado debe publicarse, guardadlo en players/**/models/ y
-# añadidlo explícitamente con: git add -f <ruta>
+.ipynb_checkpoints/
 
-# --- Editores / SO ---
+# Editores y sistema
 .vscode/*
 !.vscode/settings.json
-!.vscode/extensions.json
 .idea/
-*.swp
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# --- Claude Code (ajustes locales de cada persona) ---
+# Ajustes locales de Claude
 .claude/settings.local.json
 
-# --- Secretos ---
+# Secretos (claves, contraseñas, tokens): nunca se suben
 .env
 .env.*
 !.env.example
