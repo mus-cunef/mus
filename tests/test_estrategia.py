@@ -1,12 +1,19 @@
 import random
 
+import numpy as np
 import pytest
 
 from helpers import mano
 from musarena.actions import Descarte, Envido, Mus, NoHayMus, Paso, Quiero
 from musarena.cards import todas_las_cartas
 from musarena.engine import apply, nueva_partida
-from musarena.estrategia.creencias import Creencias, ModeloRival, ronda_de_mus, verosimilitud
+from musarena.estrategia.creencias import (
+    Creencias,
+    ModeloRival,
+    ronda_de_mus,
+    ultimos_descartes,
+    verosimilitud,
+)
 from musarena.estrategia.evaluacion import (
     bonus_pareja,
     prob_ganar_lance,
@@ -188,6 +195,42 @@ def test_la_ronda_de_mus_es_la_ultima():
         s = apply(s, Descarte(frozenset(s.cartas[s.turno][:1])))
     s = apply(s, NoHayMus())
     assert [e.asiento for e in ronda_de_mus(s.historial)] == [0]
+
+
+def test_tabla_de_descartes():
+    from musarena.estrategia import descartes
+
+    tabla = descartes.FACTOR_DESCARTE
+    assert tabla.shape == (5, N_TIPOS) and (tabla[0] == 1).all() and (tabla > 0).all()
+    base = PESOS_BASE / PESOS_BASE.sum()
+    for n in range(1, 5):
+        assert (base * tabla[n]).sum() == pytest.approx(1, abs=1e-3)  # es una distribución
+    # Tras descartarse, las manos son mejores que una al azar, y más cuantas menos cartas tira.
+    percentil = [(base * tabla[n] * PERCENTIL).sum() for n in range(1, 5)]
+    assert percentil[0] > percentil[1] > percentil[3] > 0.5
+    # Con cuentas inventadas: lo que no se ha visto queda cerca de la mano al azar.
+    cuentas = np.zeros((5, N_TIPOS))
+    cuentas[2, 0] = 1000
+    f = descartes.factores(cuentas, suavizado=100)
+    assert f[2, 0] > 50 and f[2, 1:].max() < 0.1 and (f[3] == pytest.approx(1))
+
+
+def test_las_creencias_usan_los_descartes():
+    s = nueva_partida(seed=4)
+    for _ in range(4):
+        s = apply(s, Mus())
+    tiradas = {0: 4, 1: 1, 2: 4, 3: 3}
+    for _ in range(4):
+        a = s.turno
+        s = apply(s, Descarte(frozenset(s.cartas[a][:tiradas[a]])))
+    assert ultimos_descartes(s.historial) == tiradas
+    obs = observe(s, 0)
+    con = Creencias.desde_observacion(obs)
+    sin = Creencias.desde_observacion(obs, ModeloRival(usar_descartes=False))
+    # Quien se queda tres cartas suele tener mejor mano que quien las tira todas.
+    assert con.esperanza(1, PERCENTIL) > con.esperanza(2, PERCENTIL) + 0.05
+    assert con.esperanza(1, PERCENTIL) > sin.esperanza(1, PERCENTIL)
+    assert sin.esperanza(1, PERCENTIL) == pytest.approx(sin.esperanza(2, PERCENTIL))
 
 
 def test_querer_es_mas_probable_con_mano_fuerte():
