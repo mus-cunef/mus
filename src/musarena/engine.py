@@ -151,6 +151,7 @@ def _repartir(s: State) -> None:
     """Baraja las 40 cartas, reparte 4 a cada jugador y abre la fase de mus."""
     s.baraja = Baraja(s.rng)
     s.cartas = [[], [], [], []]
+    s.tiradas = [[], [], [], []]
     for asiento in orden_desde_mano(s.mano):
         s.cartas[asiento] = ordenar_cartas(s.baraja.robar(4))
     s.fase = Fase.MUS
@@ -191,6 +192,7 @@ def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     # Las cartas tiradas van a la pila antes de robar: si el mazo se acaba a mitad del robo, se
     # barajan todos los descartes, incluidos los que acaba de tirar este jugador.
     s.baraja.descartar(descartadas)
+    s.tiradas[asiento].extend(descartadas)
     s.cartas[asiento] = ordenar_cartas(se_queda + s.baraja.robar(len(descartadas)))
     n = len(descartadas)
     s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
