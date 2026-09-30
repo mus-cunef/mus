@@ -157,19 +157,78 @@ bien el mérito.
 **medirlo**. El riesgo es que solo funcione contra rivales que se retiran demasiado; lo
 comprobará el bot cazador de la semana 3.
 
+### Experimento 2: cuánto premio por farol
+
+Con el mismo método, cuatro variantes del farol. Contra `reglas` empatan todas (entre el 76 % y
+el 81 % contra los tres estilos, ± 1,8 %), pero **entre ellas gana el premio más alto (0,2)**:
+
+| `farol 0,2` contra | Victorias (2.000 partidas) |
+| --- | --- |
+| farol 0,05 | 55,5 % |
+| farol 0,1 | 52,2 % |
+| farol 0,1 + potencial | 55,0 % |
+
+El premio del farol no sobreajusta a `reglas`. Un bot que farolea más gana también a bots de
+refuerzo que ya saben farolear. Queda por comprobar con el bot cazador y con humanos.
+
+### Experimento 3: lo que dice un descarte
+
+Tras el mus, las manos no son manos al azar: cada uno se queda lo bueno. Medimos 124.704
+descartes de 20.000 partidas (percentil medio de la mano después; una mano al azar es 0,50):
+
+| Se descarta de | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- |
+| Percentil medio | 0,79 | 0,70 | 0,67 | 0,59 |
+| Tiene pares | 100 % | 70 % | 64 % | 61 % |
+
+¿Importan también la posición o la ronda de mus? Medimos cuánta información aporta cada factor
+para adivinar la mano. Se mide en **bits**, en datos que no se usaron para medir las tablas;
+menos bits significa adivinar mejor:
+
+| Modelo | Bits | Ganancia |
+| --- | --- | --- |
+| Mano al azar | 7,72 | — |
+| **Número de cartas** | **6,87** | **0,85** |
+| Número de cartas + posición | 6,90 | 0,82 |
+| Número de cartas + ronda | 6,87 | 0,85 |
+
+- Solo importa el número de cartas.
+- La posición no cambia nada (con bots; los humanos quizá sí).
+- Las segundas rondas son menos del 1 % de los descartes.
+
+**Decisión:** la tabla por número de cartas (`estrategia/descartes.py`, medida y regenerable)
+entra en las creencias bayesianas. Además, cada jugador recuerda las cartas que tiró mientras
+siguen en la pila (`Observation.mis_descartes`) y las descuenta de las manos posibles de los
+demás. Resultados:
+
+- **`reglas` con la tabla gana a `reglas` sin ella el 52,8 % ± 1,5 %** (4.000 partidas).
+- La red de refuerzo **no lo estaba aprendiendo sola**. Cambiando solo el dato "el rival se
+  descartó de 1 carta" por "de 4", apenas cambia su decisión (1,5 puntos en querer, y en
+  sentido contrario).
+- Lo más fino (la posición, el estilo de cada jugador) se deja a la red, que lo podrá aprender
+  de partidas humanas.
+
+Como cambian las creencias, cambia lo que ve la red. Por eso se regeneran la imitación y el
+refuerzo.
+
 ### Reproducirlo
 
 ```bash
-python -m musarena.ia.entrenamiento.refuerzo --iteraciones 100 --partidas 600 \
-    --recompensa vaca+farol --salida checkpoints/exp_vaca_farol
+python -m musarena.estrategia.descartes --partidas 20000        # tabla de descartes
+python -m musarena.ia.entrenamiento.datos --partidas 10000 --salida datos/reglas_v2.npz
+python -m musarena.ia.entrenamiento.imitacion --datos datos/reglas_v2.npz \
+    --salida checkpoints/imitacion_v2.npz
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/imitacion_v2.npz \
+    --iteraciones 300 --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/v2
+mus-arena inteligente:checkpoints/v2/mejor.npz reglas -n 2000 -p 0
 ```
 
 `checkpoints/<experimento>/registro.jsonl` guarda las métricas de cada iteración.
 
 ## Próximos pasos
 
-- **Semana 2 (sigue)**: ajustar el premio del farol, entrenamiento largo con la mejor
-  recompensa y probar redes más grandes.
+- **Semana 2 (sigue)**: entrenamiento largo con farol 0,2 y las nuevas creencias; después,
+  redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.
 - **Semana 4**: grabar partidas humanas, ajustar el estilo y medir contra personas.
