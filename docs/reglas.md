@@ -10,8 +10,9 @@ después en el código y los tests.
   En el código los asientos se numeran `0-3`: el Jugador N ocupa el asiento `N-1`.
 - El orden de turno es `1 → 2 → 3 → 4 → 1…` (sentido antihorario de la mesa real).
 - **Mano**: el jugador que habla primero en cada mano. Es el siguiente al que reparte.
-  Al terminar cada mano, la mano pasa al siguiente jugador. La primera mano de la partida es el
-  **Jugador 1**, y la rotación continúa de una vaca a la siguiente.
+  Al terminar cada mano, la mano pasa al siguiente jugador, y la rotación continúa de una vaca a
+  la siguiente. En la **primera mano de la partida** la mano se decide con la **mano corrida**
+  (punto 3.6).
 - Cada asiento puede ocuparlo un **humano** o un **bot**; el motor no distingue entre ellos.
 
 ## 2. Baraja
@@ -35,6 +36,19 @@ después en el código y los tests.
    robando. Ejemplo: el último jugador se descarta de 3 y en el mazo queda 1 carta; roba esa
    carta, se barajan todos los descartes y roba las 2 que le faltan.
 5. En cuanto alguien corta, empiezan los lances.
+6. **Mano corrida (solo en la primera mano de la partida).** Se sortea qué jugador empieza, se
+   reparte desde él y se "corre" la mano, sin señas:
+   - el jugador al que le toca decide: si **corta**, **es mano** y se juega la mano con las reglas
+     normales; si **quiere mus**, **pasa la mano** al siguiente jugador, que decide igual;
+   - si los cuatro pasan la mano, **hay mus**: todos se descartan (empezando por el nuevo
+     candidato) y la mano se pasa **un puesto más**. No vuelve a quien empezó la ronda: se corre
+     desde el siguiente;
+   - se repite hasta que alguien corta. Ese jugador es la mano de la primera mano, y desde ahí
+     la mano rota con normalidad.
+
+   Ejemplo: empieza el Jugador 2. Si corta, es mano. Si quiere mus, pasa la mano al Jugador 3; si
+   el 3 corta, el 3 es mano y se juega. Si pasan los cuatro (2, 3, 4 y 1), hay mus, todos se
+   descartan y la siguiente ronda empieza en el **Jugador 3**, no en el 2. Así hasta que uno corte.
 
 ## 4. Lances
 

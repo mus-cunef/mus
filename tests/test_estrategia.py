@@ -139,7 +139,7 @@ def test_prob_ganar_pares_con_declaraciones():
 
 def test_sin_compañero_se_gana_menos():
     mias = mano("C S 7 4")
-    creencias = Creencias.desde_observacion(observe(nueva_partida(seed=0), 0))
+    creencias = Creencias.desde_observacion(observe(nueva_partida(mano=0, seed=0), 0))
     con = prob_ganar_lance(Lance.GRANDE, 0, mias, 0, range(4), creencias)
     sin = prob_ganar_lance(Lance.GRANDE, 0, mias, 0, range(4), creencias, incluir_companero=False)
     assert sin < con
@@ -149,7 +149,7 @@ def test_sin_compañero_se_gana_menos():
 
 
 def _en_grande(manos, seed=0):
-    s = nueva_partida(seed=seed)
+    s = nueva_partida(mano=0, seed=seed)
     s.cartas = [mano(t) for t in manos]
     return apply(s, NoHayMus())
 
@@ -180,7 +180,7 @@ def test_un_envite_hace_mas_probable_una_mano_fuerte():
 
 
 def test_quien_corta_el_mus_suele_tener_buena_mano():
-    s = apply(apply(nueva_partida(seed=4), Mus()), NoHayMus())  # el 0 pide mus, el 1 corta
+    s = apply(apply(nueva_partida(mano=0, seed=4), Mus()), NoHayMus())  # el 0 pide mus, el 1 corta
     ronda = ronda_de_mus(s.historial)
     assert [type(e.accion) for e in ronda] == [Mus, NoHayMus]
     creencias = Creencias.desde_observacion(observe(s, 2))
@@ -188,7 +188,7 @@ def test_quien_corta_el_mus_suele_tener_buena_mano():
 
 
 def test_la_ronda_de_mus_es_la_ultima():
-    s = nueva_partida(seed=4)
+    s = nueva_partida(mano=0, seed=4)
     for _ in range(4):
         s = apply(s, Mus())
     for _ in range(4):
@@ -216,7 +216,7 @@ def test_tabla_de_descartes():
 
 
 def test_las_creencias_usan_los_descartes():
-    s = nueva_partida(seed=4)
+    s = nueva_partida(mano=0, seed=4)
     for _ in range(4):
         s = apply(s, Mus())
     tiradas = {0: 4, 1: 1, 2: 4, 3: 3}

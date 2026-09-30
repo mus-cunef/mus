@@ -131,6 +131,7 @@ class State:
     rng: random.Random
     baraja: Baraja
     mano: int = 0
+    corrida: bool = False  # primera mano: la mano se corre hasta que alguien corta
     numero_mano: int = 1
     tantos: list[int] = field(default_factory=lambda: [0, 0])
     vacas: list[int] = field(default_factory=lambda: [0, 0])
@@ -167,6 +168,7 @@ class State:
             rng=rng,
             baraja=self.baraja.copiar(rng),
             mano=self.mano,
+            corrida=self.corrida,
             numero_mano=self.numero_mano,
             tantos=list(self.tantos),
             vacas=list(self.vacas),

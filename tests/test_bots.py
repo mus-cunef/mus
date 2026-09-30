@@ -104,7 +104,7 @@ def test_bots_reproducibles_con_semilla():
 
 
 def test_random_elige_primero_el_tipo_de_accion():
-    s = apply(nueva_partida(seed=1), NoHayMus())
+    s = apply(nueva_partida(mano=0, seed=1), NoHayMus())
     bot = RandomBot(seed=0)
     elecciones = [type(_decide(bot, s)) for _ in range(300)]
     # Paso, Envido y Órdago salen con frecuencias parecidas, aunque haya 39 envidos distintos.
