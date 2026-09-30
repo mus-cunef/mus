@@ -36,21 +36,30 @@ OPCIONES: tuple[str, ...] = (
 
 
 def es_tipo_valido(tipo: str) -> bool:
-    """Si ``tipo`` es un tipo de jugador (con estilo opcional, como ``"reglas:agresivo"``)."""
-    base, _, estilo = tipo.partition(":")
+    """Si ``tipo`` es un tipo de jugador.
+
+    Admite un estilo del bot ``reglas`` (``"reglas:agresivo"``) o un modelo del bot
+    ``inteligente`` (``"inteligente:checkpoints/mejor.npz"``).
+    """
+    base, _, extra = tipo.partition(":")
     if base not in TIPOS:
         return False
-    return not estilo or (base == HeuristicBot.tipo and estilo in ESTILOS)
+    if not extra:
+        return True
+    if base == HeuristicBot.tipo:
+        return extra in ESTILOS
+    return base == SmartBot.tipo and extra.endswith(".npz")
 
 
 def crear_jugador(tipo: str, **kwargs: Any) -> Player:
     """Crea un jugador del tipo indicado; los argumentos extra se pasan al constructor."""
     if not es_tipo_valido(tipo):
         opciones = ", ".join(OPCIONES)
-        raise ValueError(f"Tipo de jugador desconocido: {tipo!r}. Opciones: {opciones}")
-    base, _, estilo = tipo.partition(":")
-    if estilo:
-        kwargs.setdefault("estilo", estilo)
+        raise ValueError(f"Tipo de jugador desconocido: {tipo!r}. Opciones: {opciones} "
+                         f"(o inteligente:ruta/al/modelo.npz)")
+    base, _, extra = tipo.partition(":")
+    if extra:
+        kwargs.setdefault("estilo" if base == HeuristicBot.tipo else "modelo", extra)
     return TIPOS[base](**kwargs)
 
 

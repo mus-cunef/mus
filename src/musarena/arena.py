@@ -13,14 +13,17 @@ Para que la comparación sea justa:
 Uso desde la terminal::
 
     mus-arena reglas random --partidas 200
+    mus-arena inteligente:checkpoints/mejor.npz reglas -n 2000 --procesos 0
 """
 
 from __future__ import annotations
 
 import argparse
 import math
+import os
 import random
 from collections.abc import Callable, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 from musarena.match import Match
@@ -73,20 +76,41 @@ def fabrica(tipo: str | Fabrica) -> Fabrica:
     return lambda seed: crear_jugador(tipo, seed=seed)
 
 
+def _trozo(args: tuple[str | Fabrica, str | Fabrica, int, int, int]) -> ResultadoArena:
+    tipo_a, tipo_b, partidas, mejor_de, seed = args
+    return enfrentar(tipo_a, tipo_b, partidas, mejor_de, seed)
+
+
 def enfrentar(
     tipo_a: str | Fabrica,
     tipo_b: str | Fabrica,
     partidas: int = 100,
     mejor_de: int = 3,
     seed: int = 0,
+    procesos: int = 1,
 ) -> ResultadoArena:
     """Juega ``partidas`` partidas entre una pareja de ``tipo_a`` y otra de ``tipo_b``.
 
     Cada tipo puede ser un nombre del registro (``"reglas"``), un nombre con estilo
-    (``"reglas:agresivo"``) o una función ``seed -> Player``.
+    (``"reglas:agresivo"``), un modelo (``"inteligente:ruta.npz"``) o una función
+    ``seed -> Player``. Con ``procesos`` > 1 las partidas se reparten entre varios procesos
+    (cada trozo con su propia semilla, así que el resultado es otro, igual de reproducible);
+    en ese caso las funciones tienen que poder enviarse a otro proceso (no valen lambdas).
     """
     crear = {"a": fabrica(tipo_a), "b": fabrica(tipo_b)}
     nombres = [t if isinstance(t, str) else getattr(t, "__name__", "bot") for t in (tipo_a, tipo_b)]
+    if procesos > 1 and partidas >= 4:
+        trozos = min(procesos * 4, partidas // 2)
+        pares = partidas // 2  # cada reparto se juega dos veces
+        por_trozo = [2 * (pares // trozos + (i < pares % trozos)) for i in range(trozos)]
+        por_trozo[-1] += partidas % 2
+        tareas = [(tipo_a, tipo_b, n, mejor_de, seed * 1_000_003 + i)
+                  for i, n in enumerate(por_trozo)]
+        with ProcessPoolExecutor(procesos) as ex:
+            res = list(ex.map(_trozo, tareas))
+        return ResultadoArena(nombres[0], nombres[1], partidas,
+                              sum(r.victorias_a for r in res), sum(r.vacas_a for r in res),
+                              sum(r.vacas_b for r in res))
     semillas = random.Random(seed)
     victorias_a = vacas_a = vacas_b = 0
     semilla_reparto = 0
@@ -109,14 +133,18 @@ def enfrentar(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mus-arena", description="Enfrenta dos tipos de bot.")
-    ayuda = f"bot: {', '.join(BOTS)} (con estilo: reglas:agresivo)"
+    ayuda = (f"bot: {', '.join(BOTS)} (con estilo: reglas:agresivo; con modelo: "
+             f"inteligente:ruta.npz)")
     parser.add_argument("tipo_a", help=ayuda)
     parser.add_argument("tipo_b", help=ayuda)
     parser.add_argument("-n", "--partidas", type=int, default=100)
     parser.add_argument("--mejor-de", type=int, choices=(3, 5), default=3)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("-p", "--procesos", type=int, default=1,
+                        help="procesos en paralelo (0 = todos los núcleos)")
     args = parser.parse_args(argv)
-    print(enfrentar(args.tipo_a, args.tipo_b, args.partidas, args.mejor_de, args.seed))
+    procesos = args.procesos or os.cpu_count() or 1
+    print(enfrentar(args.tipo_a, args.tipo_b, args.partidas, args.mejor_de, args.seed, procesos))
     return 0
 
 

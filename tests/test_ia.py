@@ -119,6 +119,20 @@ def test_el_bot_inteligente_explica_su_jugada():
     assert "valor" in bot.razon and "%" in bot.razon
 
 
+def test_el_bot_inteligente_con_un_modelo_por_ruta(tmp_path):
+    ruta = tmp_path / "otro.npz"
+    Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(16,)).guardar(ruta)
+    bot = crear_jugador(f"inteligente:{ruta}", seed=0)
+    assert bot.red.info == {"origen": "aleatoria"}
+    with pytest.raises(ValueError):
+        crear_jugador("inteligente:modelo.txt")
+
+
+def test_la_arena_en_paralelo():
+    r = enfrentar("random", "basico", partidas=9, seed=1, procesos=2)
+    assert r.partidas == 9 and 0 <= r.victorias_a <= 9
+
+
 def test_un_modelo_incompatible_se_detecta():
     with pytest.raises(ValueError):
         SmartBot(modelo=Red.aleatoria(N_ENTRADAS + 1, acciones.N_ACCIONES))
