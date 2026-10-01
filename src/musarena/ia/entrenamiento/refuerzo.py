@@ -352,8 +352,13 @@ def evaluar(red: Red, rival: str, partidas: int, ex: Executor, trozos: int, seed
 # --- Bucle principal ---------------------------------------------------------------------
 
 
-def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool = True) -> Red:
-    """Entrena con PPO partiendo de ``red_inicial``; guarda puntos de control en ``salida``."""
+def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool = True,
+             ancla: Red | None = None) -> Red:
+    """Entrena con PPO partiendo de ``red_inicial``; guarda puntos de control en ``salida``.
+
+    ``ancla`` es la red cuyo estilo se quiere conservar (por defecto, la inicial). Para seguir
+    entrenando un modelo de refuerzo sin perder el estilo humano se ancla a la de imitación.
+    """
     salida = Path(salida)
     salida.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(cfg.seed)
@@ -363,7 +368,7 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
     torch.set_num_threads(max(1, min(8, procesos)))
 
     modelo = RedTorch.desde_numpy(red_inicial)
-    ancla = RedTorch.desde_numpy(red_inicial).eval()
+    ancla_torch = RedTorch.desde_numpy(ancla or red_inicial).eval()
     optimizador = torch.optim.Adam(modelo.parameters(), lr=cfg.lr)
     historico: list[Red] = [red_inicial]
     rivales, pesos = list(cfg.liga), list(cfg.liga.values())
@@ -387,7 +392,7 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
             datos = {k: np.concatenate([b[k] for b in lotes]) for k in
                      ("x", "mascara", "accion", "logp", "ventaja", "retorno")}
             t_jugar = time.perf_counter() - t
-            metricas = actualizar(modelo, ancla, optimizador, datos, cfg, rng)
+            metricas = actualizar(modelo, ancla_torch, optimizador, datos, cfg, rng)
 
             por_rival: dict[str, list[int]] = {}
             for b in lotes:
@@ -431,6 +436,8 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Mejora la red con aprendizaje por refuerzo.")
     parser.add_argument("--inicial", default=str(MODELO_POR_DEFECTO))
+    parser.add_argument("--ancla", default=None,
+                        help="red cuyo estilo conservar (por defecto, la inicial)")
     parser.add_argument("--salida", default="checkpoints/refuerzo")
     for nombre, valor in asdict(Config()).items():
         if isinstance(valor, (int, float, str)) and not isinstance(valor, bool):
@@ -439,7 +446,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     cfg = Config(**{k: getattr(args, k) for k in asdict(Config()) if hasattr(args, k)})
     print(f"Configuración: {asdict(cfg)}")
-    red = entrenar(Red.cargar(args.inicial), cfg, args.salida)
+    ancla = Red.cargar(args.ancla) if args.ancla else None
+    red = entrenar(Red.cargar(args.inicial), cfg, args.salida, ancla=ancla)
     red.guardar(Path(args.salida) / "final.npz")
     print(f"modelo final en {Path(args.salida) / 'final.npz'}")
     return 0
