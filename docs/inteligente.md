@@ -250,13 +250,50 @@ que más le gana).
 - Entre las iteraciones 240 y 300 la mejora ya es del orden del ruido, así que nos acercamos al
   techo de esta red con esta receta.
 
-El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v2, iteración 300**.
+Este v2 (iteración 300) fue el modelo del paquete hasta el v3.
+
+### Entrenamiento más largo (v3)
+
+Se siguió entrenando el v2 (iteración 300) **500 iteraciones más**, con la misma receta y el
+estilo anclado a la imitación (`--ancla checkpoints/imitacion_v2.npz`). Son 300.000 partidas
+más, unos 90 minutos.
+
+Durante el entrenamiento (400 partidas, siempre los mismos repartos; el v2 sacaba el 77,2 % en
+ellos):
+
+| Iteración | 25 | 100 | 175 | 225 | 300 | 325 | 400 | 450 | 500 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Victorias | 77,2 % | 76,0 % | 78,0 % | 80,2 % | 80,8 % | 82,2 % | 80,8 % | 78,2 % | 77,2 % |
+
+**Confirmación** (2.000 partidas por fila, ± 1,7 %):
+
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` | Cara a cara contra el v2 |
+| --- | --- | --- | --- | --- |
+| v2 (iteración 300) | 81,2 % | 84,1 % | 81,2 % | — |
+| v3, iteración 325 | 82,2 % | 84,7 % | 82,9 % | 55,1 % |
+| v3, iteración 400 | 80,7 % | 83,2 % | 78,8 % | 55,6 % |
+| **v3, iteración 500** | **81,0 %** | **83,8 %** | **81,5 %** | **56,9 %** |
+
+Entre ellos, los tres puntos de control del v3 empatan (del 48,4 % al 50,4 %).
+
+**Interpretación:**
+- **Contra `reglas` ya no se mejora.** El v3 saca lo mismo que el v2 (un 81-84 %).
+  `reglas` ha dejado de ser una buena regla de medir: el bot ya le gana casi todo lo que se le
+  puede ganar con estas cartas.
+- **Cara a cara, el v3 gana claramente al v2** (del 55 % al 57 %, ± 2,2 %). Ha seguido
+  aprendiendo cosas que sirven contra rivales fuertes, aunque no se noten contra el
+  heurístico.
+- **A partir de ahora la medida principal tiene que ser el cara a cara** contra la mejor
+  versión anterior, y más adelante el bot cazador y las partidas humanas.
+
+El modelo del paquete es el **v3, iteración 500**: es el que más gana al v2 y empata con los
+otros puntos de control del v3.
 
 ## Próximos pasos
 
 - **Semana 2 (sigue)**:
-  - entrenar más tiempo desde el v2 (iteración 300), anclado a la imitación (`--ancla`), para
-    ver si queda margen;
+  - medir el progreso cara a cara contra la mejor versión anterior (contra `reglas` ya no se
+    nota);
   - probar redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.
