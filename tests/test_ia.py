@@ -233,3 +233,19 @@ def test_jugar_y_actualizar_con_ppo():
                                    np.random.default_rng(0))
     assert {"politica", "valor", "entropia", "ancla", "kl"} <= set(metricas)
     assert any(not torch.equal(a, p) for a, p in zip(antes, modelo.parameters(), strict=True))
+
+
+def test_el_cazador_juega_contra_una_red_fija():
+    pytest.importorskip("torch")
+    from musarena.ia.entrenamiento import refuerzo
+
+    red = Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(16,))
+    rival = Red.aleatoria(N_ENTRADAS, acciones.N_ACCIONES, ocultas=(16,), seed=1)
+    cfg = refuerzo.Config(temperatura_rival=0.0)
+    b = refuerzo.jugar((red, rival, "contra", 2, 3, cfg))
+    assert b["partidas"] == 2 and len(b["accion"]) > 0
+    mesa = refuerzo._mesa(red, rival, 0, aprendiz_en=0, temperatura_rival=0.0)
+    assert [type(j).__name__ for j in mesa] == ["Aprendiz", "SmartBot", "Aprendiz", "SmartBot"]
+    assert mesa[1].temperatura == 0.0
+    victorias, partidas = refuerzo._enfrentar_trozo((red, rival, 2, 0))  # cara a cara entre redes
+    assert partidas == 2 and 0 <= victorias <= 2

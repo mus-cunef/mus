@@ -42,6 +42,12 @@ Uso::
 
     python -m musarena.ia.entrenamiento.refuerzo --iteraciones 200 \\
         --salida checkpoints/refuerzo
+
+**Bot cazador** (``--contra``): en vez de la liga, se entrena contra una sola red congelada que
+juega su mejor jugada, para buscar sus debilidades::
+
+    python -m musarena.ia.entrenamiento.refuerzo --contra src/musarena/ia/modelos/inteligente.npz \\
+        --temperatura-rival 0 --coef-ancla 0 --salida checkpoints/cazador
 """
 
 from __future__ import annotations
@@ -111,6 +117,7 @@ class Config:
     coef_tantos: float = 0.5     # peso de la diferencia de tantos (40 tantos = 1)
     bonus_farol: float = 0.1     # premio por farol ganado
     umbral_farol: float = 0.4    # "mano floja": probabilidad de ganar el lance menor que esto
+    temperatura_rival: float = 1.0  # cómo eligen las redes rivales (0 = siempre su mejor jugada)
     liga: dict[str, float] = field(default_factory=lambda: dict(LIGA))
 
 
@@ -206,7 +213,8 @@ def ventajas(valores: np.ndarray, recompensas: np.ndarray, lam: float
     return ventaja, ventaja + valores.astype(np.float32)
 
 
-def _mesa(red: Red, rival: str | Red, seed: int, aprendiz_en: int) -> list[Player]:
+def _mesa(red: Red, rival: str | Red, seed: int, aprendiz_en: int,
+          temperatura_rival: float = 1.0) -> list[Player]:
     """Cuatro jugadores: aprendices en la pareja ``aprendiz_en`` y el rival en la otra."""
     rng = random.Random(seed)
     mesa: list[Player] = []
@@ -215,7 +223,7 @@ def _mesa(red: Red, rival: str | Red, seed: int, aprendiz_en: int) -> list[Playe
         if pareja(asiento) == aprendiz_en or rival == "yo":
             mesa.append(Aprendiz(red, s))
         elif isinstance(rival, Red):
-            mesa.append(SmartBot(seed=s, modelo=rival, temperatura=1.0))
+            mesa.append(SmartBot(seed=s, modelo=rival, temperatura=temperatura_rival))
         else:
             mesa.append(crear_jugador(rival, seed=s))
     return mesa
@@ -230,7 +238,7 @@ def jugar(args: tuple[Red, str | Red, str, int, int, Config]) -> dict:
     victorias = 0
     for n in range(partidas):
         aprendiz_en = n % 2
-        mesa = _mesa(red, rival, rng.randrange(2**32), aprendiz_en)
+        mesa = _mesa(red, rival, rng.randrange(2**32), aprendiz_en, cfg.temperatura_rival)
         match = Match(mesa, mejor_de=cfg.mejor_de, seed=rng.randrange(2**32))
         victorias += match.play() == aprendiz_en
         manos = match.state.manos_jugadas
@@ -334,15 +342,17 @@ def _jugador_red(red: Red, seed: int) -> Player:
     return SmartBot(seed=seed, modelo=red)
 
 
-def _enfrentar_trozo(args: tuple[Red, str, int, int]) -> tuple[int, int]:
+def _enfrentar_trozo(args: tuple[Red, str | Red, int, int]) -> tuple[int, int]:
     red, rival, partidas, seed = args
-    r = enfrentar(partial(_jugador_red, red), rival, partidas=partidas, seed=seed)
+    contrario = partial(_jugador_red, rival) if isinstance(rival, Red) else rival
+    r = enfrentar(partial(_jugador_red, red), contrario, partidas=partidas, seed=seed)
     return r.victorias_a, r.partidas
 
 
-def evaluar(red: Red, rival: str, partidas: int, ex: Executor, trozos: int, seed: int = 12345
-            ) -> float:
-    """Porcentaje de victorias de la red (sin azar: su mejor jugada) contra ``rival``."""
+def evaluar(red: Red, rival: str | Red, partidas: int, ex: Executor, trozos: int,
+            seed: int = 12345) -> float:
+    """Porcentaje de victorias de la red (sin azar: su mejor jugada) contra ``rival`` (un tipo
+    de bot o otra red, que también juega su mejor jugada)."""
     por_trozo = max(2, (partidas // trozos) // 2 * 2)  # par: cada reparto se juega dos veces
     tareas = [(red, rival, por_trozo, seed + i) for i in range(max(1, partidas // por_trozo))]
     resultados = list(ex.map(_enfrentar_trozo, tareas))
@@ -353,11 +363,15 @@ def evaluar(red: Red, rival: str, partidas: int, ex: Executor, trozos: int, seed
 
 
 def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool = True,
-             ancla: Red | None = None) -> Red:
+             ancla: Red | None = None, contra: Red | None = None) -> Red:
     """Entrena con PPO partiendo de ``red_inicial``; guarda puntos de control en ``salida``.
 
     ``ancla`` es la red cuyo estilo se quiere conservar (por defecto, la inicial). Para seguir
     entrenando un modelo de refuerzo sin perder el estilo humano se ancla a la de imitación.
+
+    ``contra`` entrena un **cazador**: en vez de la liga, el único rival es esa red (que no
+    aprende), y la medida es cuánto le gana cara a cara. Si un cazador le saca mucha ventaja,
+    la red tiene una debilidad explotable.
     """
     salida = Path(salida)
     salida.mkdir(parents=True, exist_ok=True)
@@ -371,7 +385,9 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
     ancla_torch = RedTorch.desde_numpy(ancla or red_inicial).eval()
     optimizador = torch.optim.Adam(modelo.parameters(), lr=cfg.lr)
     historico: list[Red] = [red_inicial]
-    rivales, pesos = list(cfg.liga), list(cfg.liga.values())
+    rivales, pesos = ((["contra"], [1.0]) if contra is not None
+                      else (list(cfg.liga), list(cfg.liga.values())))
+    medida = "contra_rival" if contra is not None else "contra_reglas"
     mejor = -1.0
     red = red_inicial
     registro = salida / "registro.jsonl"
@@ -385,7 +401,8 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
             tareas = []
             for k in range(trozos):
                 nombre = azar.choices(rivales, weights=pesos)[0]
-                rival: str | Red = azar.choice(historico) if nombre == "historico" else nombre
+                rival: str | Red = (contra if nombre == "contra" else
+                                    azar.choice(historico) if nombre == "historico" else nombre)
                 n = cfg.partidas // trozos + (k < cfg.partidas % trozos)
                 tareas.append((red, rival, nombre, n, azar.randrange(2**32), cfg))
             lotes = list(ex.map(jugar, tareas))
@@ -411,9 +428,10 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
             if it % cfg.evaluar_cada == 0 or it == cfg.iteraciones:
                 modelo.eval()
                 red = modelo.a_numpy({"origen": "refuerzo", "iteracion": it})
-                pct = evaluar(red, "reglas", cfg.partidas_evaluacion, ex, procesos)
-                fila["contra_reglas"] = round(pct, 4)
-                red.info["contra_reglas"] = pct
+                pct = evaluar(red, contra if contra is not None else "reglas",
+                              cfg.partidas_evaluacion, ex, procesos)
+                fila[medida] = round(pct, 4)
+                red.info[medida] = pct
                 red.guardar(salida / f"iter{it:04d}.npz")
                 if pct > mejor:
                     mejor = pct
@@ -422,8 +440,8 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
                 f.write(json.dumps(fila, ensure_ascii=False) + "\n")
             if informar:
                 texto = ", ".join(f"{k} {v:.0%}" for k, v in fila["victorias"].items())
-                extra = (f" | contra reglas (sin azar) {fila['contra_reglas']:.1%}"
-                         if "contra_reglas" in fila else "")
+                rotulo = "contra el rival" if contra is not None else "contra reglas"
+                extra = (f" | {rotulo} (sin azar) {fila[medida]:.1%}" if medida in fila else "")
                 print(f"iter {it}: {fila['decisiones']} decisiones, {fila['segundos']}s, "
                       f"kl {metricas['kl']:.4f}, entropía {metricas['entropia']:.3f}, "
                       f"valor {metricas['valor']:.3f} | {texto}{extra}", flush=True)
@@ -443,11 +461,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if isinstance(valor, (int, float, str)) and not isinstance(valor, bool):
             parser.add_argument(f"--{nombre.replace('_', '-')}", type=type(valor), default=valor)
     parser.add_argument("--procesos", type=int, default=None)
+    parser.add_argument("--contra", default=None,
+                        help="entrenar un cazador: único rival, esta red congelada")
     args = parser.parse_args(argv)
     cfg = Config(**{k: getattr(args, k) for k in asdict(Config()) if hasattr(args, k)})
     print(f"Configuración: {asdict(cfg)}")
     ancla = Red.cargar(args.ancla) if args.ancla else None
-    red = entrenar(Red.cargar(args.inicial), cfg, args.salida, ancla=ancla)
+    contra = Red.cargar(args.contra) if args.contra else None
+    red = entrenar(Red.cargar(args.inicial), cfg, args.salida, ancla=ancla, contra=contra)
     red.guardar(Path(args.salida) / "final.npz")
     print(f"modelo final en {Path(args.salida) / 'final.npz'}")
     return 0
