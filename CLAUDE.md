@@ -124,29 +124,29 @@ Principios:
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
   empeora el bot. Funcionan mejor los umbrales sobre una probabilidad propia bien calibrada.
 
-## Estado actual (2026-09-30)
+## Estado actual (2026-10-01)
 - En `main`: motor completo, bots `random`, `basico`, `reglas` (con estilos) e `inteligente`,
   arena en paralelo, imitación y refuerzo (PPO) con liga de rivales, y tabla de descartes en las
   creencias.
 - Bot inteligente: semana 1 (imitación, 49 % contra `reglas`) y semana 2 (refuerzo) hechas.
-  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v2, iteración 260**: gana el
-  80 % contra `reglas` medido con 400 partidas. Es **provisional**, porque al ser la mejor de
-  15 medidas ruidosas lo esperable está en torno al 77-79 %. Detalles en
+  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v3**: el v2 más 500
+  iteraciones de refuerzo, confirmado con 2.000 partidas. Gana el 81,0 % contra `reglas`, el
+  83,8 % contra `reglas:agresivo` y el 81,5 % contra `reglas:conservador`, y el **56,9 % cara a
+  cara contra el v2**. Contra `reglas` ya no se nota la mejora (el v2 sacaba lo mismo): desde
+  ahora el progreso se mide **cara a cara contra la mejor versión anterior**. Detalles en
   `docs/inteligente.md`.
 - `datos/` y `checkpoints/` no están en git (son grandes). Solo se sube el modelo elegido, en
-  `src/musarena/ia/modelos/`. Los puntos de control del v2 están solo en el ordenador de
-  Pablo (`checkpoints/v2_farol020/`). Para repetir un experimento en otro ordenador, los
+  `src/musarena/ia/modelos/`. Los puntos de control del v2 y el v3 están solo en el ordenador
+  de Pablo (`checkpoints/v2_farol020/`, `checkpoints/v3_largo/`). Para repetir un experimento en otro ordenador, los
   comandos están en `docs/inteligente.md`: el v2 completo tarda aproximadamente 1 hora con 20
   núcleos.
 
 ## Pendiente (siguiente sesión)
-1. **Confirmar el modelo v2** con 2.000 partidas contra cada estilo de `reglas`:
-   `mus-arena inteligente reglas -n 2000 -p 0` (y con `reglas:agresivo` y
-   `reglas:conservador`). Si hay puntos de control, compararlo también con las iteraciones
-   240, 280 y 300 y con el modelo anterior. Apuntar los números en `docs/inteligente.md` y
-   actualizar este apartado.
-2. **Entrenar más tiempo** partiendo del v2 (`--inicial src/musarena/ia/modelos/inteligente.npz`),
-   porque a las 300 iteraciones todavía subía.
+1. **Medir siempre cara a cara** contra la mejor versión anterior (ahora el v3):
+   `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0`. Un modelo nuevo solo sustituye
+   al anterior si le gana por más que el margen de error (±2,2 % con 2.000 partidas).
+2. Seguir entrenando a partir del v3 da poco: entre las iteraciones 325 y 500 del v3 ya
+   empatan. Para mejorar hay que cambiar algo (los puntos siguientes).
 3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
 4. **Semana 3**: búsqueda al decidir (simular manos posibles de los rivales según las
    creencias) y un bot cazador que busque debilidades del nuestro.

@@ -211,7 +211,7 @@ demás. Resultados:
 Como cambian las creencias, cambia lo que ve la red. Por eso se regeneran la imitación y el
 refuerzo.
 
-### Entrenamiento largo (v2): el modelo actual
+### Entrenamiento largo (v2)
 
 Con la tabla de descartes en las creencias:
 
@@ -229,21 +229,82 @@ Victorias contra el nuevo `reglas`, midiendo cada 20 iteraciones (400 partidas, 
 - Después sigue subiendo despacio, sin tocar techo, así que entrenar más tiempo compensa.
 - Desde la 240 se mueve entre el 77 % y el 80 %.
 
-El modelo del paquete (`ia/modelos/inteligente.npz`) es el de la **iteración 260**, y es
-**provisional**: al ser la mejor de 15 medidas ruidosas, su 80 % está seguramente algo inflado.
-Lo esperable está en torno al 77-79 %. Queda pendiente confirmarlo con 2.000 partidas contra
-cada estilo, compararlo con las iteraciones 240, 280 y 300 y enfrentarlo al modelo anterior.
+**Confirmación** (2.000 partidas por fila, ± 1,7 %):
 
-### Reproducirlo
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` |
+| --- | --- | --- | --- |
+| v1 (`vaca+farol` 0,2, 100 iteraciones, sin tabla de descartes) | 75,7 % | 81,0 % | 76,9 % |
+| v2, iteración 240 | 79,9 % | 82,3 % | 80,4 % |
+| v2, iteración 260 | 79,8 % | 83,6 % | 81,4 % |
+| v2, iteración 280 | 80,2 % | 82,4 % | 80,3 % |
+| **v2, iteración 300** | **81,2 %** | **84,1 %** | **81,2 %** |
+
+Entre ellos (2.000 partidas por enfrentamiento, ± 2,2 %), los cuatro puntos de control del v2
+empatan (del 49 % al 51 %) y todos ganan al v1 (del 53,4 % al 55,9 %; la iteración 300 es la
+que más le gana).
+
+**Interpretación:**
+- El ~80 % era real.
+- La tabla de descartes y el entrenamiento más largo mejoran tanto contra `reglas` como cara a
+  cara.
+- Entre las iteraciones 240 y 300 la mejora ya es del orden del ruido, así que nos acercamos al
+  techo de esta red con esta receta.
+
+Este v2 (iteración 300) fue el modelo del paquete hasta el v3.
+
+### Entrenamiento más largo (v3)
+
+Se siguió entrenando el v2 (iteración 300) **500 iteraciones más**, con la misma receta y el
+estilo anclado a la imitación (`--ancla checkpoints/imitacion_v2.npz`). Son 300.000 partidas
+más, unos 90 minutos.
+
+Durante el entrenamiento (400 partidas, siempre los mismos repartos; el v2 sacaba el 77,2 % en
+ellos):
+
+| Iteración | 25 | 100 | 175 | 225 | 300 | 325 | 400 | 450 | 500 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Victorias | 77,2 % | 76,0 % | 78,0 % | 80,2 % | 80,8 % | 82,2 % | 80,8 % | 78,2 % | 77,2 % |
+
+**Confirmación** (2.000 partidas por fila, ± 1,7 %):
+
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` | Cara a cara contra el v2 |
+| --- | --- | --- | --- | --- |
+| v2 (iteración 300) | 81,2 % | 84,1 % | 81,2 % | — |
+| v3, iteración 325 | 82,2 % | 84,7 % | 82,9 % | 55,1 % |
+| v3, iteración 400 | 80,7 % | 83,2 % | 78,8 % | 55,6 % |
+| **v3, iteración 500** | **81,0 %** | **83,8 %** | **81,5 %** | **56,9 %** |
+
+Entre ellos, los tres puntos de control del v3 empatan (del 48,4 % al 50,4 %).
+
+**Interpretación:**
+- **Contra `reglas` ya no se mejora.** El v3 saca lo mismo que el v2 (un 81-84 %).
+  `reglas` ha dejado de ser una buena regla de medir: el bot ya le gana casi todo lo que se le
+  puede ganar con estas cartas.
+- **Cara a cara, el v3 gana claramente al v2** (del 55 % al 57 %, ± 2,2 %). Ha seguido
+  aprendiendo cosas que sirven contra rivales fuertes, aunque no se noten contra el
+  heurístico.
+- **A partir de ahora la medida principal tiene que ser el cara a cara** contra la mejor
+  versión anterior, y más adelante el bot cazador y las partidas humanas.
+
+El modelo del paquete es el **v3, iteración 500**: es el que más gana al v2 y empata con los
+otros puntos de control del v3.
+
+### Reproducir la semana 2
 
 ```bash
-python -m musarena.estrategia.descartes --partidas 20000        # tabla de descartes
+# Experimentos de recompensa (100 iteraciones cada uno)
+python -m musarena.ia.entrenamiento.refuerzo --iteraciones 100 --partidas 600     --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/exp_farol020
+# Tabla de descartes, datos e imitación v2
+python -m musarena.estrategia.descartes --partidas 20000
 python -m musarena.ia.entrenamiento.datos --partidas 10000 --salida datos/reglas_v2.npz
-python -m musarena.ia.entrenamiento.imitacion --datos datos/reglas_v2.npz \
-    --salida checkpoints/imitacion_v2.npz
-python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/imitacion_v2.npz \
-    --iteraciones 300 --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/v2
-mus-arena inteligente:checkpoints/v2/mejor.npz reglas -n 2000 -p 0
+python -m musarena.ia.entrenamiento.imitacion --datos datos/reglas_v2.npz     --salida checkpoints/imitacion_v2.npz
+# v2: 300 iteraciones de refuerzo
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/imitacion_v2.npz     --iteraciones 300 --partidas 600 --evaluar-cada 20 --recompensa vaca+farol     --bonus-farol 0.2 --salida checkpoints/v2
+# v3: 500 iteraciones más, anclado a la imitación
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/v2/iter0300.npz     --ancla checkpoints/imitacion_v2.npz --iteraciones 500 --evaluar-cada 25     --recompensa vaca+farol --bonus-farol 0.2 --seed 1 --salida checkpoints/v3
+# Medir
+mus-arena inteligente:checkpoints/v3/iter0500.npz reglas -n 2000 -p 0
+mus-arena inteligente:checkpoints/v3/iter0500.npz inteligente:checkpoints/v2/iter0300.npz -n 2000 -p 0
 ```
 
 `checkpoints/<experimento>/registro.jsonl` guarda las métricas de cada iteración.
@@ -251,8 +312,8 @@ mus-arena inteligente:checkpoints/v2/mejor.npz reglas -n 2000 -p 0
 ## Próximos pasos
 
 - **Semana 2 (sigue)**:
-  - confirmar el modelo v2 con 2.000 partidas por estilo;
-  - entrenar más tiempo, porque seguía subiendo;
+  - medir el progreso cara a cara contra la mejor versión anterior (contra `reglas` ya no se
+    nota);
   - probar redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.
