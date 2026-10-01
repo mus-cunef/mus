@@ -229,30 +229,34 @@ Victorias contra el nuevo `reglas`, midiendo cada 20 iteraciones (400 partidas, 
 - Después sigue subiendo despacio, sin tocar techo, así que entrenar más tiempo compensa.
 - Desde la 240 se mueve entre el 77 % y el 80 %.
 
-El modelo del paquete (`ia/modelos/inteligente.npz`) es el de la **iteración 260**, y es
-**provisional**: al ser la mejor de 15 medidas ruidosas, su 80 % está seguramente algo inflado.
-Lo esperable está en torno al 77-79 %. Queda pendiente confirmarlo con 2.000 partidas contra
-cada estilo, compararlo con las iteraciones 240, 280 y 300 y enfrentarlo al modelo anterior.
+**Confirmación** (2.000 partidas por fila, ± 1,7 %):
 
-### Reproducirlo
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` |
+| --- | --- | --- | --- |
+| v1 (`vaca+farol` 0,2, 100 iteraciones, sin tabla de descartes) | 75,7 % | 81,0 % | 76,9 % |
+| v2, iteración 240 | 79,9 % | 82,3 % | 80,4 % |
+| v2, iteración 260 | 79,8 % | 83,6 % | 81,4 % |
+| v2, iteración 280 | 80,2 % | 82,4 % | 80,3 % |
+| **v2, iteración 300** | **81,2 %** | **84,1 %** | **81,2 %** |
 
-```bash
-python -m musarena.estrategia.descartes --partidas 20000        # tabla de descartes
-python -m musarena.ia.entrenamiento.datos --partidas 10000 --salida datos/reglas_v2.npz
-python -m musarena.ia.entrenamiento.imitacion --datos datos/reglas_v2.npz \
-    --salida checkpoints/imitacion_v2.npz
-python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/imitacion_v2.npz \
-    --iteraciones 300 --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/v2
-mus-arena inteligente:checkpoints/v2/mejor.npz reglas -n 2000 -p 0
-```
+Entre ellos (2.000 partidas por enfrentamiento, ± 2,2 %), los cuatro puntos de control del v2
+empatan (del 49 % al 51 %) y todos ganan al v1 (del 53,4 % al 55,9 %; la iteración 300 es la
+que más le gana).
 
-`checkpoints/<experimento>/registro.jsonl` guarda las métricas de cada iteración.
+**Interpretación:**
+- El ~80 % era real.
+- La tabla de descartes y el entrenamiento más largo mejoran tanto contra `reglas` como cara a
+  cara.
+- Entre las iteraciones 240 y 300 la mejora ya es del orden del ruido, así que nos acercamos al
+  techo de esta red con esta receta.
+
+El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v2, iteración 300**.
 
 ## Próximos pasos
 
 - **Semana 2 (sigue)**:
-  - confirmar el modelo v2 con 2.000 partidas por estilo;
-  - entrenar más tiempo, porque seguía subiendo;
+  - entrenar más tiempo desde el v2 (iteración 300), anclado a la imitación (`--ancla`), para
+    ver si queda margen;
   - probar redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.

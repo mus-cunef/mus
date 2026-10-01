@@ -129,9 +129,10 @@ Principios:
   arena en paralelo, imitación y refuerzo (PPO) con liga de rivales, y tabla de descartes en las
   creencias.
 - Bot inteligente: semana 1 (imitación, 49 % contra `reglas`) y semana 2 (refuerzo) hechas.
-  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v2, iteración 260**: gana el
-  80 % contra `reglas` medido con 400 partidas. Es **provisional**, porque al ser la mejor de
-  15 medidas ruidosas lo esperable está en torno al 77-79 %. Detalles en
+  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v2, iteración 300**,
+  **confirmado con 2.000 partidas por estilo**: gana el 81,2 % contra `reglas`, el 84,1 %
+  contra `reglas:agresivo` y el 81,2 % contra `reglas:conservador`, y el 55,9 % cara a cara
+  contra el modelo v1. Entre las iteraciones 240 y 300 ya apenas mejora. Detalles en
   `docs/inteligente.md`.
 - `datos/` y `checkpoints/` no están en git (son grandes). Solo se sube el modelo elegido, en
   `src/musarena/ia/modelos/`. Los puntos de control del v2 están solo en el ordenador de
@@ -140,13 +141,16 @@ Principios:
   núcleos.
 
 ## Pendiente (siguiente sesión)
-1. **Confirmar el modelo v2** con 2.000 partidas contra cada estilo de `reglas`:
-   `mus-arena inteligente reglas -n 2000 -p 0` (y con `reglas:agresivo` y
-   `reglas:conservador`). Si hay puntos de control, compararlo también con las iteraciones
-   240, 280 y 300 y con el modelo anterior. Apuntar los números en `docs/inteligente.md` y
-   actualizar este apartado.
-2. **Entrenar más tiempo** partiendo del v2 (`--inicial src/musarena/ia/modelos/inteligente.npz`),
-   porque a las 300 iteraciones todavía subía.
+1. **Entrenar más tiempo** partiendo del v2. Se empezó y se paró a petición de Pablo; para
+   retomarlo, en su ordenador (necesita `checkpoints/`):
+   `python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/v2_farol020/iter0300.npz
+   --ancla checkpoints/imitacion_v2.npz --iteraciones 500 --evaluar-cada 25 --recompensa
+   vaca+farol --bonus-farol 0.2 --seed 1 --salida checkpoints/v3_largo` (~75 min). Desde otro
+   ordenador se puede partir del modelo del paquete
+   (`--inicial src/musarena/ia/modelos/inteligente.npz`), pero la imitación v2 para `--ancla`
+   hay que regenerarla (ver `docs/inteligente.md`).
+2. Medir el resultado con 2.000 partidas por estilo y cara a cara contra el v2; quedarse con el
+   nuevo solo si gana.
 3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
 4. **Semana 3**: búsqueda al decidir (simular manos posibles de los rivales según las
    creencias) y un bot cazador que busque debilidades del nuestro.
