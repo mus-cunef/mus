@@ -118,6 +118,7 @@ class Config:
     bonus_farol: float = 0.1     # premio por farol ganado
     umbral_farol: float = 0.4    # "mano floja": probabilidad de ganar el lance menor que esto
     temperatura_rival: float = 1.0  # cómo eligen las redes rivales (0 = siempre su mejor jugada)
+    peso_cazadores: float = 0.25    # parte de las partidas contra los cazadores (si se dan)
     liga: dict[str, float] = field(default_factory=lambda: dict(LIGA))
 
 
@@ -363,7 +364,8 @@ def evaluar(red: Red, rival: str | Red, partidas: int, ex: Executor, trozos: int
 
 
 def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool = True,
-             ancla: Red | None = None, contra: Red | None = None) -> Red:
+             ancla: Red | None = None, contra: Red | None = None,
+             cazadores: Sequence[Red] = ()) -> Red:
     """Entrena con PPO partiendo de ``red_inicial``; guarda puntos de control en ``salida``.
 
     ``ancla`` es la red cuyo estilo se quiere conservar (por defecto, la inicial). Para seguir
@@ -372,6 +374,10 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
     ``contra`` entrena un **cazador**: en vez de la liga, el único rival es esa red (que no
     aprende), y la medida es cuánto le gana cara a cara. Si un cazador le saca mucha ventaja,
     la red tiene una debilidad explotable.
+
+    ``cazadores`` se añaden a la liga (una parte ``cfg.peso_cazadores`` de las partidas), para que
+    la red aprenda a tapar las debilidades que encontraron. Es el entrenamiento con
+    "exploiters" de AlphaStar. En ese caso la medida es cara a cara contra el último cazador.
     """
     salida = Path(salida)
     salida.mkdir(parents=True, exist_ok=True)
@@ -387,7 +393,14 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
     historico: list[Red] = [red_inicial]
     rivales, pesos = ((["contra"], [1.0]) if contra is not None
                       else (list(cfg.liga), list(cfg.liga.values())))
-    medida = "contra_rival" if contra is not None else "contra_reglas"
+    if cazadores and contra is None:
+        total = sum(pesos)
+        pesos = [w / total * (1 - cfg.peso_cazadores) for w in pesos] + [cfg.peso_cazadores]
+        rivales.append("cazador")
+    # Qué se mide: el rival fijo (cazador), o el último cazador de la liga, o reglas.
+    medido: str | Red = (contra if contra is not None else
+                         cazadores[-1] if cazadores else "reglas")
+    medida = "contra_reglas" if medido == "reglas" else "contra_rival"
     mejor = -1.0
     red = red_inicial
     registro = salida / "registro.jsonl"
@@ -402,7 +415,9 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
             for k in range(trozos):
                 nombre = azar.choices(rivales, weights=pesos)[0]
                 rival: str | Red = (contra if nombre == "contra" else
-                                    azar.choice(historico) if nombre == "historico" else nombre)
+                                    azar.choice(historico) if nombre == "historico" else
+                                    azar.choice(list(cazadores)) if nombre == "cazador" else
+                                    nombre)
                 n = cfg.partidas // trozos + (k < cfg.partidas % trozos)
                 tareas.append((red, rival, nombre, n, azar.randrange(2**32), cfg))
             lotes = list(ex.map(jugar, tareas))
@@ -428,8 +443,7 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
             if it % cfg.evaluar_cada == 0 or it == cfg.iteraciones:
                 modelo.eval()
                 red = modelo.a_numpy({"origen": "refuerzo", "iteracion": it})
-                pct = evaluar(red, contra if contra is not None else "reglas",
-                              cfg.partidas_evaluacion, ex, procesos)
+                pct = evaluar(red, medido, cfg.partidas_evaluacion, ex, procesos)
                 fila[medida] = round(pct, 4)
                 red.info[medida] = pct
                 red.guardar(salida / f"iter{it:04d}.npz")
@@ -440,7 +454,8 @@ def entrenar(red_inicial: Red, cfg: Config, salida: str | Path, informar: bool =
                 f.write(json.dumps(fila, ensure_ascii=False) + "\n")
             if informar:
                 texto = ", ".join(f"{k} {v:.0%}" for k, v in fila["victorias"].items())
-                rotulo = "contra el rival" if contra is not None else "contra reglas"
+                rotulo = "contra reglas" if medido == "reglas" else (
+                    "contra el rival" if contra is not None else "contra el cazador")
                 extra = (f" | {rotulo} (sin azar) {fila[medida]:.1%}" if medida in fila else "")
                 print(f"iter {it}: {fila['decisiones']} decisiones, {fila['segundos']}s, "
                       f"kl {metricas['kl']:.4f}, entropía {metricas['entropia']:.3f}, "
@@ -463,12 +478,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--procesos", type=int, default=None)
     parser.add_argument("--contra", default=None,
                         help="entrenar un cazador: único rival, esta red congelada")
+    parser.add_argument("--cazadores", nargs="+", default=[],
+                        help="redes cazadoras que se añaden a la liga")
     args = parser.parse_args(argv)
     cfg = Config(**{k: getattr(args, k) for k in asdict(Config()) if hasattr(args, k)})
     print(f"Configuración: {asdict(cfg)}")
     ancla = Red.cargar(args.ancla) if args.ancla else None
     contra = Red.cargar(args.contra) if args.contra else None
-    red = entrenar(Red.cargar(args.inicial), cfg, args.salida, ancla=ancla, contra=contra)
+    cazadores = [Red.cargar(r) for r in args.cazadores]
+    red = entrenar(Red.cargar(args.inicial), cfg, args.salida, ancla=ancla, contra=contra,
+                   cazadores=cazadores)
     red.guardar(Path(args.salida) / "final.npz")
     print(f"modelo final en {Path(args.salida) / 'final.npz'}")
     return 0
