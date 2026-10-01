@@ -211,7 +211,7 @@ demás. Resultados:
 Como cambian las creencias, cambia lo que ve la red. Por eso se regeneran la imitación y el
 refuerzo.
 
-### Entrenamiento largo (v2): el modelo actual
+### Entrenamiento largo (v2)
 
 Con la tabla de descartes en las creencias:
 
@@ -288,6 +288,26 @@ Entre ellos, los tres puntos de control del v3 empatan (del 48,4 % al 50,4 %).
 
 El modelo del paquete es el **v3, iteración 500**: es el que más gana al v2 y empata con los
 otros puntos de control del v3.
+
+### Reproducir la semana 2
+
+```bash
+# Experimentos de recompensa (100 iteraciones cada uno)
+python -m musarena.ia.entrenamiento.refuerzo --iteraciones 100 --partidas 600     --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/exp_farol020
+# Tabla de descartes, datos e imitación v2
+python -m musarena.estrategia.descartes --partidas 20000
+python -m musarena.ia.entrenamiento.datos --partidas 10000 --salida datos/reglas_v2.npz
+python -m musarena.ia.entrenamiento.imitacion --datos datos/reglas_v2.npz     --salida checkpoints/imitacion_v2.npz
+# v2: 300 iteraciones de refuerzo
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/imitacion_v2.npz     --iteraciones 300 --partidas 600 --evaluar-cada 20 --recompensa vaca+farol     --bonus-farol 0.2 --salida checkpoints/v2
+# v3: 500 iteraciones más, anclado a la imitación
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/v2/iter0300.npz     --ancla checkpoints/imitacion_v2.npz --iteraciones 500 --evaluar-cada 25     --recompensa vaca+farol --bonus-farol 0.2 --seed 1 --salida checkpoints/v3
+# Medir
+mus-arena inteligente:checkpoints/v3/iter0500.npz reglas -n 2000 -p 0
+mus-arena inteligente:checkpoints/v3/iter0500.npz inteligente:checkpoints/v2/iter0300.npz -n 2000 -p 0
+```
+
+`checkpoints/<experimento>/registro.jsonl` guarda las métricas de cada iteración.
 
 ## Próximos pasos
 
