@@ -65,6 +65,8 @@ src/musarena/
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos bots en muchas partidas con repartos duplicados (`mus-arena`)
+  grabacion.py  grabar partidas (semilla + acciones, JSON en partidas/) y reproducirlas para
+                reconstruir cada observación; mus-play graba sola si juega algún humano
   cli.py        punto de entrada `mus-play` (humanos y bots en cualquier asiento)
 tests/          pytest (helpers.py tiene utilidades comunes)
 ```
@@ -119,6 +121,8 @@ Principios:
   mus y la mano corre un puesto más (`docs/reglas.md`, punto 3.6). `nueva_partida()` lo hace por
   defecto; con `nueva_partida(mano=k)` la mano queda fijada (útil en tests). No cambia las
   probabilidades, así que los bots no se tocaron.
+- **Partidas humanas**: `mus-play` graba sola cada partida con algún humano en `partidas/`, y
+  **se suben a GitHub** en PRs para juntar las de todo el equipo (pesan pocos KB).
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
@@ -150,8 +154,9 @@ Principios:
 3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
 4. **Semana 3**: búsqueda al decidir (simular manos posibles de los rivales según las
    creencias) y un bot cazador que busque debilidades del nuestro.
-5. **Semana 4**: grabar partidas humanas (con `Match(al_decidir=...)`), regenerar la tabla de
-   descartes con ellas y medir contra personas. Más adelante, la web con torneos y
+5. **Semana 4**: las partidas humanas ya se graban solas con `mus-play` (carpeta `partidas/`).
+   Con ellas: imitación de humanos (`datos.de_partidas`), regenerar la tabla de descartes y
+   medir contra personas. Más adelante, la web con torneos y
    clasificaciones.
 
 ## Comandos frecuentes

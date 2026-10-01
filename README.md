@@ -76,6 +76,10 @@ mus-arena reglas basico -n 200                      # enfrenta dos bots en 200 p
 mus-arena reglas:agresivo reglas:conservador        # también con estilos
 ```
 
+Cada partida en la que juega algún humano se guarda sola en `partidas/` (la semilla del reparto
+y las acciones de cada jugador), también si se interrumpe. Con esas partidas el bot inteligente
+aprenderá a jugar como las personas. Para no guardarla: `mus-play --no-grabar`.
+
 ## Estructura
 
 ```

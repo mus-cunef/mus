@@ -13,6 +13,8 @@ Los datos no usan información oculta: ``x`` sale solo de la observación del ju
 Uso desde la terminal::
 
     python -m musarena.ia.entrenamiento.datos --partidas 5000 --salida datos/reglas.npz
+
+Con :func:`de_partidas` se sacan los mismos ejemplos de partidas humanas grabadas.
 """
 
 from __future__ import annotations
@@ -26,8 +28,9 @@ from pathlib import Path
 
 import numpy as np
 
+from musarena.grabacion import PartidaGrabada, estado_final, reproducir
 from musarena.ia import acciones
-from musarena.ia.codificacion import codificar
+from musarena.ia.codificacion import N_ENTRADAS, codificar
 from musarena.match import Decision, Match
 from musarena.players import crear_jugador
 from musarena.state import pareja
@@ -82,6 +85,38 @@ def generar(
         with ProcessPoolExecutor(procesos) as ex:
             resultados = list(ex.map(_jugar_trozo, tareas))
     return {k: np.concatenate([r[k] for r in resultados]) for k in resultados[0]}
+
+
+def de_partidas(partidas: Sequence[PartidaGrabada], tipos: Sequence[str] = ("humano",)
+                ) -> dict[str, np.ndarray]:
+    """Ejemplos de entrenamiento con las decisiones de los asientos de ``tipos`` (por defecto,
+    las de los humanos) en partidas grabadas con :mod:`musarena.grabacion`.
+
+    El valor de cada decisión es +1 o -1 según quién ganó esa vaca; las decisiones de una vaca
+    que se quedó a medias (partida interrumpida) no se usan.
+    """
+    xs, mascaras, ys, valores = [], [], [], []
+    for partida in partidas:
+        elegidos = {a for a, t in enumerate(partida.jugadores) if t in tipos}
+        if not elegidos:
+            continue
+        ganadoras = [m.ganador_vaca for m in estado_final(partida).manos_jugadas
+                     if m.ganador_vaca is not None]
+        for d in reproducir(partida):
+            vaca = sum(d.observacion.vacas)
+            if d.asiento not in elegidos or vaca >= len(ganadoras):
+                continue
+            obs = d.observacion
+            xs.append(codificar(obs))
+            mascaras.append(acciones.mascara(d.legales, obs.cartas))
+            ys.append(acciones.indice(d.accion, obs.cartas))
+            valores.append(1.0 if pareja(d.asiento) == ganadoras[vaca] else -1.0)
+    return {
+        "x": np.asarray(xs, dtype=np.float32).reshape(-1, N_ENTRADAS),
+        "mascara": np.asarray(mascaras, dtype=bool).reshape(-1, acciones.N_ACCIONES),
+        "y": np.asarray(ys, dtype=np.int16),
+        "valor": np.asarray(valores, dtype=np.float32),
+    }
 
 
 def guardar(datos: dict[str, np.ndarray], ruta: str | Path) -> None:
