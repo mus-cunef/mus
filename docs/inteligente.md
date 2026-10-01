@@ -317,4 +317,7 @@ mus-arena inteligente:checkpoints/v3/iter0500.npz inteligente:checkpoints/v2/ite
   - probar redes más grandes y más partidas por iteración.
 - **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
   debilidades fáciles de explotar.
-- **Semana 4**: grabar partidas humanas, ajustar el estilo y medir contra personas.
+- **Semana 4**: ajustar el estilo con las partidas humanas y medir contra personas. Ya se
+  graban solas: cada partida de `mus-play` con algún humano se guarda en `partidas/` (semilla
+  más acciones; `musarena.grabacion`), y `datos.de_partidas` las convierte en ejemplos de
+  entrenamiento.
