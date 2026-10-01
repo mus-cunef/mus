@@ -249,3 +249,13 @@ def test_el_cazador_juega_contra_una_red_fija():
     assert mesa[1].temperatura == 0.0
     victorias, partidas = refuerzo._enfrentar_trozo((red, rival, 2, 0))  # cara a cara entre redes
     assert partidas == 2 and 0 <= victorias <= 2
+
+
+def test_el_sorteo_con_temperatura_nunca_elige_una_accion_ilegal():
+    """Con probabilidades en float32, un número sorteado muy cerca de 1 caía en la última acción
+    del catálogo ("No quiero") aunque fuera ilegal. Se fuerza ese caso extremo."""
+    s = apply(nueva_partida(mano=0, seed=0), NoHayMus())  # grande, sin apuesta: no hay "No quiero"
+    legales = legal_actions(s)
+    bot = SmartBot(seed=0, temperatura=1.0)
+    bot.rng.random = lambda: 1 - 2**-53  # el mayor número que puede salir
+    assert bot.choose_action(observe(s, 0), legales) in legales

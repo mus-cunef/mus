@@ -67,8 +67,11 @@ class SmartBot(Bot):
             self.razon = "sin acciones del catálogo: primera legal"
             return legal_actions[0]
         if self.temperatura > 0:
-            q = np.where(mascara, p ** (1 / self.temperatura), 0.0)
-            i = int(self.rng.choices(range(len(q)), weights=q)[0])
+            # En float64 y como números de Python: con float32, numpy redondea el número sorteado
+            # al compararlo con la suma acumulada y, muy de vez en cuando, el sorteo caía en una
+            # acción con probabilidad 0 (ilegal).
+            q = np.where(mascara, p.astype(np.float64) ** (1 / self.temperatura), 0.0)
+            i = int(self.rng.choices(range(len(q)), weights=q.tolist())[0])
         else:
             i = int(np.argmax(p))
         mejores = np.argsort(-p)[:3]
