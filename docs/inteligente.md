@@ -381,9 +381,44 @@ cazador (del 21 % al 22 %, ± 2,5 %), y contra `reglas` pierde fuerza (83,2 %, 8
 78,5 %). El problema es la estrategia, no que sea predecible, así que el bot sigue jugando sin
 azar.
 
-**Siguiente:** v5, el v4 con **tres cazadores** en la liga (el del v3, para no volver a la
-debilidad de los órdagos, y dos del v4). Se empezó y se paró en la iteración 22, sin medidas
-todavía; el comando está en `CLAUDE.md`, apartado Pendiente.
+### v5 y cierre del bot: el modelo final es el v4
+
+El v5 es el v4 entrenado con **tres cazadores** en la liga: el del v3 (para no volver a la
+debilidad de los órdagos) y dos del v4, que son un 35 % de las partidas. Se entrenaron 150
+iteraciones. Contra el cazador del v4 subió enseguida y se quedó plano (1.000 partidas, ± 3 %):
+
+| Iteración del v5 | 25 | 50 | 75 | 100 | 125 | 150 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Gana al cazador del v4 | 29,1 % | 27,7 % | 30,9 % | 30,2 % | 29,5 % | 29,2 % |
+
+**Confirmación con los mismos repartos** (2.000 partidas por fila, semilla 77):
+
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` | Contra el cazador del v4 | Contra el v4 |
+| --- | --- | --- | --- | --- | --- |
+| **v4** | **81,4 %** | **83,5 %** | **81,2 %** | 21,3 % | — |
+| v5 | 77,4 % | 81,4 % | 77,8 % | 31,1 % | 48,6 % |
+
+**Decisión: el modelo final es el v4.**
+- El v5 se defiende mejor del cazador (+10 puntos), pero **pierde fuerza** contra `reglas`: de
+  2 a 4 puntos, más que el margen de error con los mismos repartos.
+- Cara a cara empata con el v4.
+- Con el criterio acordado (no perder fuerza y mejorar en algo medible), no sustituye al v4.
+
+Es un compromiso clásico. Para no dejarse intimidar por un rival agresivo, el v5 aguanta más
+las apuestas, y eso sale caro contra rivales prudentes como `reglas`, que suelen apostar con
+buena mano. Defenderse de todo a la vez exige una estrategia más cercana al equilibrio. Eso se
+consigue con más ciclos de cazadores, una red más grande o búsqueda al decidir, y queda como
+trabajo futuro.
+
+### El bot inteligente, versión final
+
+| | Valor |
+| --- | --- |
+| Modelo | v4 (`ia/modelos/inteligente.npz`, marcado como final) |
+| Contra `reglas` / agresivo / conservador | 81-82 % / 83-84 % / 81 % |
+| Contra el cazador del v3 (órdagos) | 88,5 % |
+| Contra el cazador del v4 (agresividad) | 21,3 %: queda explotable por un rival muy agresivo |
+| Historia | imitación (49 %) → v1 (76 %) → v2 (81 %) → v3 → v4 |
 
 ### Reproducir la semana 3
 
@@ -416,13 +451,11 @@ mus-arena inteligente:checkpoints/v3/iter0500.npz inteligente:checkpoints/v2/ite
 
 ## Próximos pasos
 
-- **Semana 3 (sigue)**:
-  - un cazador nuevo contra el v4, para ver si queda alguna debilidad fácil de explotar;
-  - la búsqueda al decidir;
-  - probar redes más grandes y más partidas por iteración.
-- La meta del 65 % contra `reglas` ya está superada (81-84 %). Desde ahora el progreso se mide
-  cara a cara contra la mejor versión anterior y contra los cazadores.
-- **Semana 4**: ajustar el estilo con las partidas humanas y medir contra personas. Ya se
-  graban solas: cada partida de `mus-play` con algún humano se guarda en `partidas/` (semilla
-  más acciones; `musarena.grabacion`), y `datos.de_partidas` las convierte en ejemplos de
-  entrenamiento.
+El bot está **cerrado**: el v4 es el modelo final. Para seguir mejorándolo más adelante:
+
+- **Partidas humanas** (ya se graban solas): afinar el estilo para jugar como una persona sin
+  perder fuerza, regenerar la tabla de descartes y medir contra personas.
+- **Más ciclos de cazadores**, con más peso en la liga o más iteraciones, para tapar la
+  debilidad ante la agresividad sin perder fuerza contra rivales prudentes.
+- **Búsqueda al decidir** en las jugadas grandes.
+- **Una red más grande** y más partidas por iteración.
