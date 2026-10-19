@@ -353,6 +353,38 @@ difícil de explotar. Por el camino apareció un fallo en el sorteo con temperat
 **Siguiente paso:** entrenar un **cazador nuevo contra el v4**. Si no le saca mucha ventaja, el
 v4 es difícil de explotar. Si encuentra otra debilidad, se repite el ciclo con él en la liga.
 
+### Cazador contra el v4: queda otra debilidad
+
+Un cazador nuevo entrenado contra el v4 (150 iteraciones) también le gana (1.000 partidas, ± 3 %):
+
+| Iteración del cazador | 25 | 50 | 75 | 100 | 125 |
+| --- | --- | --- | --- | --- | --- |
+| Gana al v4 | 65,8 % | 71,9 % | 76,0 % | 78,8 % | 78,9 % |
+
+Qué explota (1.000 partidas entre los dos; el cazador gana el 79,3 %):
+
+| Comportamiento | Cazador | v4 |
+| --- | --- | --- |
+| Sube la apuesta cuando le envidan | 16,3 % | 7,2 % |
+| Farolea al abrir en grande / chica | 18 % / 15 % | 11 % / 8 % |
+| Órdagos que echa (de farol) | 2.593 (64 %) | 3.646 (12 %) |
+| Acepta los órdagos del rival | 2 % | 15 % |
+
+- Lo de los órdagos mejoró: el v4 acepta el 15 %, frente al 4 % del v3.
+- La debilidad nueva es más general: **el v4 se retira demasiado ante la agresividad** (subidas
+  y faroles).
+- Además, el cazador ya no acepta los órdagos del v4, porque casi siempre los echa con buena
+  mano.
+
+**¿Lo arregla jugar con azar?** No. El v4 con temperatura 0, 0,25, 0,5 y 1 gana lo mismo al
+cazador (del 21 % al 22 %, ± 2,5 %), y contra `reglas` pierde fuerza (83,2 %, 81,5 %, 80,0 % y
+78,5 %). El problema es la estrategia, no que sea predecible, así que el bot sigue jugando sin
+azar.
+
+**Siguiente:** v5, el v4 con **tres cazadores** en la liga (el del v3, para no volver a la
+debilidad de los órdagos, y dos del v4). Se empezó y se paró en la iteración 22, sin medidas
+todavía; el comando está en `CLAUDE.md`, apartado Pendiente.
+
 ### Reproducir la semana 3
 
 ```bash

@@ -130,7 +130,7 @@ Principios:
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
   empeora el bot. Funcionan mejor los umbrales sobre una probabilidad propia bien calibrada.
 
-## Estado actual (2026-10-01)
+## Estado actual (2026-10-19)
 - En `main`: motor completo, bots `random`, `basico`, `reglas` (con estilos) e `inteligente`,
   arena en paralelo, imitación y refuerzo (PPO) con liga de rivales, y tabla de descartes en las
   creencias.
@@ -141,6 +141,10 @@ Principios:
   con el v3 (48,1 % ± 2,2) y gana el **88,5 % al cazador**, que ganaba el 92,5 % al v3. El v3
   tenía una debilidad: casi nunca aceptaba un órdago, y el cazador lo explotaba echando órdagos
   de farol. Detalles en `docs/inteligente.md` (semana 3).
+- **El v4 todavía es explotable:** un cazador nuevo le gana el 79 %, porque **se retira
+  demasiado ante la agresividad** (subidas y faroles). Jugar con azar (temperatura) no lo
+  arregla y le quita fuerza. Se está entrenando un **v5** con tres cazadores en la liga para
+  cerrar el bot. Detalles en `docs/inteligente.md` (semana 3).
 - `datos/` y `checkpoints/` no están en git (son grandes). Solo se sube el modelo elegido, en
   `src/musarena/ia/modelos/`. Los puntos de control del v2, v3, v4 y los cazadores están solo
   en el ordenador de Pablo (`checkpoints/`). Para repetir un experimento en otro ordenador, los
@@ -153,9 +157,18 @@ Principios:
    2.000 partidas) y tiene que mejorar en algo medible: ganar cara a cara o ser más difícil de
    explotar (contra el cazador). Medir con
    `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0`.
-2. **Cazador nuevo contra el v4** (`refuerzo.py --contra src/musarena/ia/modelos/inteligente.npz
-   --temperatura-rival 0 --coef-ancla 0`). Si le saca poca ventaja, el v4 es robusto; si
-   encuentra otra debilidad, se mete en la liga (`--cazadores`) y se repite.
+2. **Cerrar el bot (en curso): v5.** Se empezó y se paró en la iteración 22. Para retomarlo,
+   en el ordenador de Pablo (necesita `checkpoints/`), en dos tramos de 150 iteraciones (una
+   tarea en segundo plano se corta pasada aproximadamente una hora):
+   `python -m musarena.ia.entrenamiento.refuerzo --inicial src/musarena/ia/modelos/inteligente.npz
+   --ancla checkpoints/imitacion_v2.npz --cazadores checkpoints/cazador_v3/iter0150.npz
+   checkpoints/cazador_v4/iter0100.npz checkpoints/cazador_v4/iter0125.npz --peso-cazadores 0.35
+   --iteraciones 150 --evaluar-cada 25 --partidas-evaluacion 1000 --recompensa vaca+farol
+   --bonus-farol 0.2 --seed 6 --salida checkpoints/v5a`. El segundo tramo parte de
+   `checkpoints/v5a/iter0150.npz`. Después: confirmar con 2.000 partidas (contra `reglas`, cara a
+   cara contra el v4 y contra el cazador del v4), un cazador corto contra el v5 y **congelar el
+   modelo final** con el resultado que salga. Luego se pasa a la web, el torneo y la
+   documentación.
 3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
 4. **Semana 3 (sigue)**: búsqueda al decidir (simular manos posibles de los rivales según
    las creencias).
