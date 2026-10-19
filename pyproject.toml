@@ -18,6 +18,8 @@ dev = ["pytest>=7", "ruff>=0.4", "httpx>=0.27"]
 ia = ["torch>=2.2"]
 # La interfaz web (mus-web).
 web = ["fastapi>=0.110", "uvicorn>=0.29"]
+# Pruebas de la web en un navegador de verdad (usa el Chrome instalado).
+e2e = ["playwright>=1.40"]
 
 [project.scripts]
 mus-play = "musarena.cli:main"
