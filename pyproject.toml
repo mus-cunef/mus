@@ -20,6 +20,7 @@ ia = ["torch>=2.2"]
 [project.scripts]
 mus-play = "musarena.cli:main"
 mus-arena = "musarena.arena:main"
+mus-torneo = "musarena.torneo:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
