@@ -123,6 +123,8 @@ Principios:
   probabilidades, así que los bots no se tocaron.
 - **Partidas humanas**: `mus-play` graba sola cada partida con algún humano en `partidas/`, y
   **se suben a GitHub** en PRs para juntar las de todo el equipo (pesan pocos KB).
+- **Cazadores**: para medir lo explotable que es el bot se entrena un cazador contra él
+  (`--contra`); las debilidades que encuentre se tapan metiéndolo en la liga (`--cazadores`).
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
@@ -133,27 +135,30 @@ Principios:
   arena en paralelo, imitación y refuerzo (PPO) con liga de rivales, y tabla de descartes en las
   creencias.
 - Bot inteligente: semana 1 (imitación, 49 % contra `reglas`) y semana 2 (refuerzo) hechas.
-  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v3**: el v2 más 500
-  iteraciones de refuerzo, confirmado con 2.000 partidas. Gana el 81,0 % contra `reglas`, el
-  83,8 % contra `reglas:agresivo` y el 81,5 % contra `reglas:conservador`, y el **56,9 % cara a
-  cara contra el v2**. Contra `reglas` ya no se nota la mejora (el v2 sacaba lo mismo): desde
-  ahora el progreso se mide **cara a cara contra la mejor versión anterior**. Detalles en
-  `docs/inteligente.md`.
+  El modelo del paquete (`ia/modelos/inteligente.npz`) es el **v4**: el v3 entrenado con
+  **cazadores en la liga**, confirmado con 2.000 partidas. Gana el 81,7 % contra `reglas`, el
+  84,4 % contra `reglas:agresivo` y el 81,4 % contra `reglas:conservador`, empata cara a cara
+  con el v3 (48,1 % ± 2,2) y gana el **88,5 % al cazador**, que ganaba el 92,5 % al v3. El v3
+  tenía una debilidad: casi nunca aceptaba un órdago, y el cazador lo explotaba echando órdagos
+  de farol. Detalles en `docs/inteligente.md` (semana 3).
 - `datos/` y `checkpoints/` no están en git (son grandes). Solo se sube el modelo elegido, en
-  `src/musarena/ia/modelos/`. Los puntos de control del v2 y el v3 están solo en el ordenador
-  de Pablo (`checkpoints/v2_farol020/`, `checkpoints/v3_largo/`). Para repetir un experimento en otro ordenador, los
+  `src/musarena/ia/modelos/`. Los puntos de control del v2, v3, v4 y los cazadores están solo
+  en el ordenador de Pablo (`checkpoints/`). Para repetir un experimento en otro ordenador, los
   comandos están en `docs/inteligente.md`: el v2 completo tarda aproximadamente 1 hora con 20
   núcleos.
 
 ## Pendiente (siguiente sesión)
-1. **Medir siempre cara a cara** contra la mejor versión anterior (ahora el v3):
-   `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0`. Un modelo nuevo solo sustituye
-   al anterior si le gana por más que el margen de error (±2,2 % con 2.000 partidas).
-2. Seguir entrenando a partir del v3 da poco: entre las iteraciones 325 y 500 del v3 ya
-   empatan. Para mejorar hay que cambiar algo (los puntos siguientes).
+1. **Cómo se decide si un modelo nuevo sustituye al anterior:** no puede perder fuerza (contra
+   `reglas` y cara a cara contra el anterior, dentro del margen de error: ±1,7 % y ±2,2 % con
+   2.000 partidas) y tiene que mejorar en algo medible: ganar cara a cara o ser más difícil de
+   explotar (contra el cazador). Medir con
+   `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0`.
+2. **Cazador nuevo contra el v4** (`refuerzo.py --contra src/musarena/ia/modelos/inteligente.npz
+   --temperatura-rival 0 --coef-ancla 0`). Si le saca poca ventaja, el v4 es robusto; si
+   encuentra otra debilidad, se mete en la liga (`--cazadores`) y se repite.
 3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
-4. **Semana 3**: búsqueda al decidir (simular manos posibles de los rivales según las
-   creencias) y un bot cazador que busque debilidades del nuestro.
+4. **Semana 3 (sigue)**: búsqueda al decidir (simular manos posibles de los rivales según
+   las creencias).
 5. **Semana 4**: las partidas humanas ya se graban solas con `mus-play` (carpeta `partidas/`).
    Con ellas: imitación de humanos (`datos.de_partidas`), regenerar la tabla de descartes y
    medir contra personas. Más adelante, la web con torneos y

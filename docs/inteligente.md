@@ -286,8 +286,81 @@ Entre ellos, los tres puntos de control del v3 empatan (del 48,4 % al 50,4 %).
 - **A partir de ahora la medida principal tiene que ser el cara a cara** contra la mejor
   versión anterior, y más adelante el bot cazador y las partidas humanas.
 
-El modelo del paquete es el **v3, iteración 500**: es el que más gana al v2 y empata con los
-otros puntos de control del v3.
+El v3 (iteración 500) fue el modelo del paquete hasta el v4: era el que más ganaba al v2 y
+empataba con los otros puntos de control del v3.
+
+## Semana 3: el bot cazador
+
+Contra `reglas` ya no se nota el progreso, así que hace falta una medida más exigente: un
+**cazador**, un bot entrenado **solo para ganar al nuestro**, que se queda congelado y juega
+siempre su mejor jugada (`refuerzo.py --contra`). Si el cazador le saca mucha ventaja, el
+nuestro tiene una debilidad explotable. Es la técnica de los "exploiters" de AlphaStar.
+
+### La debilidad del v3: se retira ante casi cualquier órdago
+
+El cazador parte de una copia del v3, sin ancla de estilo, y en pocas iteraciones le gana con
+claridad (1.000 partidas por medida, ± 3 %):
+
+| Iteración del cazador | 25 | 50 | 75 | 100 | 125 | 150 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Gana al v3 | 57,1 % | 69,0 % | 79,6 % | 88,1 % | 90,3 % | 89,6 % |
+
+Qué explota (200 partidas entre los dos):
+
+| | Cazador | v3 |
+| --- | --- | --- |
+| Órdagos que echa | 1.145 | 1.995 |
+| …de farol (fuerza menor de 0,5) | 701 (61 %) | 219 (11 %) |
+| Órdagos del rival que acepta | 110 | 64 (≈4 %) |
+
+El v3 solo acepta uno de cada 25 órdagos, así que el cazador echa órdagos de farol sin parar y
+cobra el "no quiero". Contra `reglas` no se veía, porque `reglas` casi nunca farolea con
+órdagos. Un humano que lo descubriera sí lo aprovecharía.
+
+El cazador es un especialista: contra `reglas` gana solo el 31,8 %, el 49,3 % y el 26,8 %
+(estilos equilibrado, agresivo y conservador). Solo sabe ganar al v3.
+
+### v4: los cazadores entran en la liga
+
+Se siguió entrenando el v3 con la liga de siempre **más los cazadores** (iteraciones 100 y 150),
+que son un 30 % de las partidas (`refuerzo.py --cazadores`). En total fueron 300 iteraciones,
+con el estilo anclado a la imitación. La medida durante el entrenamiento es cara a cara contra
+el cazador más fuerte, contra el que el v3 ganaba un 14 %:
+
+| Iteración del v4 | 25 | 50 | 100 | 150 | 200 | 250 | 300 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Gana al cazador | 63,6 % | 83,5 % | 86,4 % | 86,4 % | 86,6 % | 89,1 % | 88,7 % |
+
+**Confirmación** (2.000 partidas por enfrentamiento):
+
+| Modelo | `reglas` | `reglas:agresivo` | `reglas:conservador` | Contra el cazador | Contra el v3 |
+| --- | --- | --- | --- | --- | --- |
+| v3 | 81,0 % | 83,8 % | 81,5 % | **7,5 %** | — |
+| v4, iteración 200 | 80,9 % | 83,3 % | 81,2 % | 88,0 % | 48,2 % |
+| v4, iteración 250 | 80,5 % | 83,5 % | 80,6 % | 87,1 % | 49,8 % |
+| **v4, iteración 300** | **81,7 %** | **84,4 %** | **81,4 %** | **88,5 %** | **48,1 %** |
+
+**Interpretación:**
+- **La debilidad está tapada.** Contra el cazador, el v3 gana el 7,5 % y el v4 el 88,5 %.
+- **No ha costado fuerza.** Contra `reglas` está igual o un poco por encima, y cara a cara
+  contra el v3 empata (48,1 % ± 2,2 %: la diferencia no es significativa).
+- Entre los puntos de control del v4, el de la iteración 300 gana al de la 200 (54 %).
+
+El modelo del paquete es el **v4, iteración 300**: igual de fuerte que el v3 y mucho más
+difícil de explotar. Por el camino apareció un fallo en el sorteo con temperatura de
+`SmartBot`, que muy de vez en cuando elegía una acción ilegal. Ya está corregido y tiene su test.
+
+**Siguiente paso:** entrenar un **cazador nuevo contra el v4**. Si no le saca mucha ventaja, el
+v4 es difícil de explotar. Si encuentra otra debilidad, se repite el ciclo con él en la liga.
+
+### Reproducir la semana 3
+
+```bash
+python -m musarena.ia.entrenamiento.refuerzo --contra checkpoints/v3/iter0500.npz     --temperatura-rival 0 --coef-ancla 0 --iteraciones 150 --evaluar-cada 25     --partidas-evaluacion 1000 --seed 2 --salida checkpoints/cazador_v3
+python -m musarena.ia.entrenamiento.refuerzo --inicial checkpoints/v3/iter0500.npz     --ancla checkpoints/imitacion_v2.npz     --cazadores checkpoints/cazador_v3/iter0100.npz checkpoints/cazador_v3/iter0150.npz     --peso-cazadores 0.3 --iteraciones 300 --evaluar-cada 25 --partidas-evaluacion 1000     --recompensa vaca+farol --bonus-farol 0.2 --salida checkpoints/v4
+```
+
+(Se entrenó en dos tramos de 100 y 200 iteraciones por el fallo del sorteo.)
 
 ### Reproducir la semana 2
 
@@ -311,12 +384,12 @@ mus-arena inteligente:checkpoints/v3/iter0500.npz inteligente:checkpoints/v2/ite
 
 ## Próximos pasos
 
-- **Semana 2 (sigue)**:
-  - medir el progreso cara a cara contra la mejor versión anterior (contra `reglas` ya no se
-    nota);
+- **Semana 3 (sigue)**:
+  - un cazador nuevo contra el v4, para ver si queda alguna debilidad fácil de explotar;
+  - la búsqueda al decidir;
   - probar redes más grandes y más partidas por iteración.
-- **Semana 3**: búsqueda al decidir y bot cazador. Meta: 65 % o más contra `reglas`, sin
-  debilidades fáciles de explotar.
+- La meta del 65 % contra `reglas` ya está superada (81-84 %). Desde ahora el progreso se mide
+  cara a cara contra la mejor versión anterior y contra los cazadores.
 - **Semana 4**: ajustar el estilo con las partidas humanas y medir contra personas. Ya se
   graban solas: cada partida de `mus-play` con algún humano se guarda en `partidas/` (semilla
   más acciones; `musarena.grabacion`), y `datos.de_partidas` las convierte en ejemplos de
