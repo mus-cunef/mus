@@ -19,7 +19,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Instalar el paquete
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,web]"
       - name: Lint (ruff)
         run: ruff check .
       - name: Tests (pytest)

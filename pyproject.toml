@@ -13,21 +13,24 @@ authors = [{ name = "Mus Arena (CUNEF)" }]
 dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.4"]
+dev = ["pytest>=7", "ruff>=0.4", "httpx>=0.27"]
 # Solo para entrenar el bot inteligente (para jugar con él basta numpy).
 ia = ["torch>=2.2"]
+# La interfaz web (mus-web).
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
 
 [project.scripts]
 mus-play = "musarena.cli:main"
 mus-arena = "musarena.arena:main"
 mus-torneo = "musarena.torneo:main"
+mus-web = "musarena.web.servidor:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 # Los pesos entrenados del bot inteligente y la tabla medida de descartes viajan con el paquete.
-musarena = ["ia/modelos/*.npz", "estrategia/*.npz"]
+musarena = ["ia/modelos/*.npz", "estrategia/*.npz", "web/estaticos/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,174 @@
+"""La aplicación web: la API (JSON) y la página (HTML, CSS y JavaScript sin compilar).
+
+API:
+
+=======  =============================  ======================================================
+Método   Ruta                           Qué hace
+=======  =============================  ======================================================
+GET      ``/api/opciones``              Tipos de jugador que se pueden elegir y límites
+POST     ``/api/mesas``                 Crea una mesa; devuelve el código de cada humano
+GET      ``/api/mesas/{id}``            Lo que ve un asiento (cabecera ``X-Token``)
+POST     ``/api/mesas/{id}/jugar``      Juega una de las acciones legales
+POST     ``/api/mesas/{id}/chat``       Escribe en el chat de la mesa
+GET      ``/api/torneos/participantes`` Bots que pueden jugar un torneo
+POST     ``/api/torneos``               Lanza un torneo (uno a la vez)
+GET      ``/api/torneos/{id}``          Progreso y, al acabar, clasificación y cruces
+GET      ``/api/clasificacion``         Última clasificación publicada
+GET      ``/api/reglas``                Las reglas (Markdown)
+=======  =============================  ======================================================
+
+El código de cada asiento va en la cabecera ``X-Token`` y, en la página, detrás del ``#`` del
+enlace (esa parte nunca se manda a ningún servidor), así no queda en registros ni se filtra.
+"""
+
+from __future__ import annotations
+
+import json
+from importlib import resources
+
+from fastapi import FastAPI, Header, Request
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from musarena import __version__
+from musarena.players import TIPOS
+from musarena.players.externos import es_bot_externo
+from musarena.web.config import Config
+from musarena.web.mesas import ErrorMesa, GestorMesas, etiqueta, tipos_permitidos
+from musarena.web.torneos import GestorTorneos
+
+ESTATICOS = resources.files("musarena.web") / "estaticos"
+
+
+class NuevaMesa(BaseModel):
+    asientos: list[str] = Field(min_length=4, max_length=4)
+    mejor_de: int = 3
+
+
+class Jugada(BaseModel):
+    accion: int
+    version: int
+
+
+class Mensaje(BaseModel):
+    texto: str = Field(min_length=1, max_length=1000)
+
+
+class NuevoTorneo(BaseModel):
+    participantes: list[str] = Field(min_length=2, max_length=20)
+    partidas: int = 100
+
+
+def _descripcion(tipo: str) -> str:
+    if tipo == "humano":
+        return "Una persona desde su navegador"
+    if es_bot_externo(tipo):
+        return "Bot de la carpeta bots/"
+    base, _, estilo = tipo.partition(":")
+    texto = getattr(TIPOS[base], "descripcion", "")
+    return f"{texto} (estilo {estilo})" if estilo else texto
+
+
+def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
+              torneos: GestorTorneos | None = None) -> FastAPI:
+    """Crea la aplicación (los tests le pasan una configuración y gestores a medida)."""
+    config = config or Config.desde_entorno()
+    app = FastAPI(title="Mus Arena", version=__version__, docs_url="/api/docs",
+                  redoc_url=None)
+    app.state.config = config
+    app.state.mesas = mesas if mesas is not None else GestorMesas(config)
+    app.state.torneos = torneos if torneos is not None else GestorTorneos(config)
+
+    @app.exception_handler(ErrorMesa)
+    async def error_mesa(_: Request, e: ErrorMesa) -> JSONResponse:
+        return JSONResponse({"detalle": str(e)}, status_code=e.codigo)
+
+    @app.middleware("http")
+    async def cabeceras_de_seguridad(request: Request, call_next):
+        respuesta = await call_next(request)
+        respuesta.headers["Referrer-Policy"] = "no-referrer"
+        respuesta.headers["X-Content-Type-Options"] = "nosniff"
+        respuesta.headers["X-Frame-Options"] = "DENY"
+        if request.url.path.startswith("/api/mesas"):
+            respuesta.headers["Cache-Control"] = "no-store"
+        return respuesta
+
+    # --- Mesas ----------------------------------------------------------------------------
+
+    @app.get("/api/opciones")
+    def opciones() -> dict:
+        return {
+            "tipos": [{"valor": t, "nombre": etiqueta(t), "descripcion": _descripcion(t)}
+                      for t in tipos_permitidos(config)],
+            "max_partidas_torneo": config.max_partidas_torneo,
+            "publico": config.publico,
+            "version": __version__,
+        }
+
+    @app.post("/api/mesas")
+    def crear_mesa(datos: NuevaMesa) -> dict:
+        mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de)
+        return {"mesa": mesa.id,
+                "asientos": [{"asiento": a, "tipo": etiqueta(t), "token": mesa.tokens.get(a)}
+                             for a, t in enumerate(mesa.tipos)]}
+
+    @app.get("/api/mesas/{mesa_id}")
+    def ver_mesa(mesa_id: str, x_token: str = Header(default="")) -> dict:
+        return app.state.mesas.obtener(mesa_id).vista(x_token)
+
+    @app.post("/api/mesas/{mesa_id}/jugar")
+    def jugar(mesa_id: str, jugada: Jugada, x_token: str = Header(default="")) -> dict:
+        mesa = app.state.mesas.obtener(mesa_id)
+        mesa.jugar(x_token, jugada.accion, jugada.version)
+        return mesa.vista(x_token)
+
+    @app.post("/api/mesas/{mesa_id}/chat")
+    def chat(mesa_id: str, mensaje: Mensaje, x_token: str = Header(default="")) -> dict:
+        mesa = app.state.mesas.obtener(mesa_id)
+        mesa.escribir(x_token, mensaje.texto)
+        return mesa.vista(x_token)
+
+    # --- Torneos y clasificación ----------------------------------------------------------
+
+    @app.get("/api/torneos/participantes")
+    def participantes() -> dict:
+        return {"participantes": [{"valor": p, "nombre": etiqueta(p)}
+                                  for p in app.state.torneos.participantes_posibles()],
+                "max_partidas": config.max_partidas_torneo}
+
+    @app.post("/api/torneos")
+    def lanzar_torneo(datos: NuevoTorneo) -> dict:
+        return app.state.torneos.lanzar(datos.participantes, datos.partidas).a_dict()
+
+    @app.get("/api/torneos/en-marcha")
+    def torneo_en_marcha() -> dict:
+        estado = app.state.torneos.en_marcha()
+        return {"torneo": estado.a_dict() if estado else None}
+
+    @app.get("/api/torneos/{torneo_id}")
+    def ver_torneo(torneo_id: str) -> dict:
+        return app.state.torneos.obtener(torneo_id).a_dict()
+
+    @app.get("/api/clasificacion")
+    def clasificacion() -> dict:
+        ruta = config.ruta("clasificacion")
+        if not ruta.is_file():
+            raise ErrorMesa("Todavía no hay ninguna clasificación publicada", 404)
+        return json.loads(ruta.read_text(encoding="utf-8"))
+
+    @app.get("/api/reglas", response_class=PlainTextResponse)
+    def reglas() -> str:
+        ruta = config.ruta("reglas")
+        if not ruta.is_file():
+            raise ErrorMesa("No se encuentran las reglas", 404)
+        return ruta.read_text(encoding="utf-8")
+
+    # --- Página ---------------------------------------------------------------------------
+
+    @app.get("/", include_in_schema=False)
+    def inicio() -> FileResponse:
+        return FileResponse(str(ESTATICOS / "index.html"))
+
+    app.mount("/estaticos", StaticFiles(directory=str(ESTATICOS)), name="estaticos")
+    return app
