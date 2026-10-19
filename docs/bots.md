@@ -26,6 +26,14 @@ class MiBot(Bot):
 - Para poder usarlo en `mus-play` y `mus-arena`, se añade a `TIPOS` en
   `src/musarena/players/__init__.py`.
 
+### Participar en el torneo sin tocar la librería
+
+Un bot también puede vivir en un archivo aparte: cualquier `.py` de la carpeta `bots/` que defina
+una clase de bot entra solo en el torneo (`mus-torneo`) y se puede enfrentar en la arena por su
+ruta (`mus-arena bots/mi_bot.py reglas`). [`bots/prudente.py`](../bots/prudente.py) es un ejemplo
+completo y [`bots/README.md`](../bots/README.md) explica los pasos. Se carga con
+`musarena.players.externos`.
+
 ## Bots disponibles
 
 | Tipo | Clase | Qué hace |

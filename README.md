@@ -6,7 +6,7 @@ Proyecto de la asignatura **Inteligencia Artificial** (3º MAT, CUNEF Universida
 El **mus clásico de 4 jugadores por parejas**: motor en Python, interfaz web para jugar entre humanos
 o contra bots, y una arena donde compiten inteligencias artificiales.
 
-**Jugar:** próximamente · **Documentación:** próximamente · **Clasificación:** próximamente
+**Jugar:** próximamente · **Documentación:** próximamente · **Clasificación:** [docs/clasificacion.md](docs/clasificacion.md)
 
 ## ¿Qué es esto?
 
@@ -74,11 +74,33 @@ mus-play --jugadores humano,reglas:agresivo,reglas,reglas:conservador   # con es
 mus-play --jugadores reglas,random,reglas,random    # solo bots, para mirar
 mus-arena reglas basico -n 200                      # enfrenta dos bots en 200 partidas
 mus-arena reglas:agresivo reglas:conservador        # también con estilos
+mus-arena bots/prudente.py reglas                   # un bot de la carpeta bots/
+mus-torneo                                          # torneo de todos los bots
 ```
 
 Cada partida en la que juega algún humano se guarda sola en `partidas/` (la semilla del reparto
 y las acciones de cada jugador), también si se interrumpe. Con esas partidas el bot inteligente
 aprenderá a jugar como las personas. Para no guardarla: `mus-play --no-grabar`.
+
+## Torneo
+
+`mus-torneo` enfrenta a **todos los bots contra todos**: los del registro, con los estilos de
+`reglas`, y cualquier bot que se deje en la carpeta [`bots/`](bots/). Usa repartos duplicados y
+saca una clasificación por **Elo** (modelo de Bradley-Terry) y por porcentaje de victorias.
+
+```bash
+mus-torneo                                  # todos, 200 partidas por cruce
+mus-torneo -n 400 --markdown clasificacion.md --json clasificacion.json
+mus-torneo --participantes reglas,inteligente,bots/mi_bot.py
+```
+
+Una GitHub Action ([`torneo.yml`](.github/workflows/torneo.yml)) lo juega cada lunes, al
+fusionar cambios en los bots y cuando se lanza a mano desde la pestaña *Actions*, y publica la
+clasificación. La última está en [`docs/clasificacion.md`](docs/clasificacion.md).
+
+**Participar con un bot propio:** copia [`bots/prudente.py`](bots/prudente.py), programa
+`choose_action` y entrará solo en el torneo. Las instrucciones están en
+[`bots/README.md`](bots/README.md).
 
 ## Estructura
 

@@ -45,6 +45,7 @@ src/musarena/
   players/      HumanTerminalPlayer, RandomBot ("random"), BasicBot ("basico"), HeuristicBot
                 ("reglas", con estilos), SmartBot ("inteligente", admite
                 "inteligente:ruta.npz") y el registro TIPOS / crear_jugador(tipo)
+                players/externos.py: bots en archivos .py aparte ("bots/mi_bot.py")
   fuerza.py     probabilidad exacta de ganar a una mano al azar en cada lance
   estrategia/   análisis compartido por los bots (numpy), solo a partir de la Observation:
     tipos.py      los 330 tipos de mano (el palo no importa) y tablas por tipo
@@ -65,9 +66,12 @@ src/musarena/
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos bots en muchas partidas con repartos duplicados (`mus-arena`)
+  torneo.py     torneo todos contra todos (`mus-torneo`): clasificación por Elo (Bradley-Terry)
+                y %; jugar_torneo(..., al_progreso=) y ResultadoTorneo.a_dict() para la web
   grabacion.py  grabar partidas (semilla + acciones, JSON en partidas/) y reproducirlas para
                 reconstruir cada observación; mus-play graba sola si juega algún humano
   cli.py        punto de entrada `mus-play` (humanos y bots en cualquier asiento)
+bots/           bots externos: cada .py entra solo en el torneo (prudente.py es el ejemplo)
 tests/          pytest (helpers.py tiene utilidades comunes)
 ```
 
@@ -125,6 +129,10 @@ Principios:
   **se suben a GitHub** en PRs para juntar las de todo el equipo (pesan pocos KB).
 - **Cazadores**: para medir lo explotable que es el bot se entrena un cazador contra él
   (`--contra`); las debilidades que encuentre se tapan metiéndolo en la liga (`--cazadores`).
+- **Torneo**: todos contra todos con repartos duplicados, clasificación por Elo (Bradley-Terry,
+  que tiene en cuenta contra quién se gana) y por %. La misma función (`torneo.jugar_torneo`)
+  sirve para la terminal, para GitHub Actions (`.github/workflows/torneo.yml`, que publica la
+  clasificación en el resumen de la ejecución) y para la **web**, donde será un apartado propio.
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
@@ -159,10 +167,11 @@ Principios:
    y mejorar en algo medible (cara a cara o contra el cazador). Medir con
    `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0 --seed 77`.
 2. **Lo que falta del proyecto** (lo que promete el README):
-   - **torneo automático** en GitHub Actions con clasificación (`mus-torneo`, todos contra
-     todos);
+   - ~~torneo automático~~ **hecho** (`mus-torneo`, Action `torneo.yml`, `docs/clasificacion.md`);
    - **interfaz web** para jugar desde el navegador (humanos y bots en cualquier asiento; las
-     partidas también se graban);
+     partidas también se graban). Debe tener un **apartado de torneo**: elegir participantes y
+     partidas por cruce, lanzar `torneo.jugar_torneo(..., al_progreso=...)` en segundo plano
+     con una barra de progreso, y pintar `ResultadoTorneo.a_dict()` (clasificación y cruces);
    - **web de documentación** en GitHub Pages.
 3. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
@@ -178,5 +187,6 @@ ruff check src tests                        # lint
 mus-play                                    # jugar en la terminal (humanos y bots)
 mus-arena inteligente reglas -n 2000 -p 0   # medir bots (-p 0: todos los núcleos)
 mus-arena inteligente:checkpoints/x.npz reglas -n 2000 -p 0   # medir un modelo concreto
+mus-torneo -n 200                           # torneo de todos los bots (y los de bots/)
 python -m musarena.ia.entrenamiento.refuerzo --help           # entrenar
 ```
