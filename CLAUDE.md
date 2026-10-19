@@ -130,7 +130,7 @@ Principios:
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
   empeora el bot. Funcionan mejor los umbrales sobre una probabilidad propia bien calibrada.
 
-## Estado actual (2026-10-19)
+## Estado actual (2026-10-19): bot cerrado
 - En `main`: motor completo, bots `random`, `basico`, `reglas` (con estilos) e `inteligente`,
   arena en paralelo, imitación y refuerzo (PPO) con liga de rivales, y tabla de descartes en las
   creencias.
@@ -141,10 +141,11 @@ Principios:
   con el v3 (48,1 % ± 2,2) y gana el **88,5 % al cazador**, que ganaba el 92,5 % al v3. El v3
   tenía una debilidad: casi nunca aceptaba un órdago, y el cazador lo explotaba echando órdagos
   de farol. Detalles en `docs/inteligente.md` (semana 3).
-- **El v4 todavía es explotable:** un cazador nuevo le gana el 79 %, porque **se retira
-  demasiado ante la agresividad** (subidas y faroles). Jugar con azar (temperatura) no lo
-  arregla y le quita fuerza. Se está entrenando un **v5** con tres cazadores en la liga para
-  cerrar el bot. Detalles en `docs/inteligente.md` (semana 3).
+- **El bot está cerrado: el v4 es el modelo final** (congelado). Un cazador nuevo le gana el 79 %,
+  porque se retira demasiado ante la agresividad. El intento de taparlo (v5, con tres
+  cazadores) se defendía mejor (+10 puntos contra el cazador), pero perdía de 2 a 4 puntos
+  contra `reglas`, así que no sustituyó al v4. La temperatura tampoco lo arregla. Detalles en
+  `docs/inteligente.md` (semana 3).
 - `datos/` y `checkpoints/` no están en git (son grandes). Solo se sube el modelo elegido, en
   `src/musarena/ia/modelos/`. Los puntos de control del v2, v3, v4 y los cazadores están solo
   en el ordenador de Pablo (`checkpoints/`). Para repetir un experimento en otro ordenador, los
@@ -152,30 +153,23 @@ Principios:
   núcleos.
 
 ## Pendiente (siguiente sesión)
-1. **Cómo se decide si un modelo nuevo sustituye al anterior:** no puede perder fuerza (contra
-   `reglas` y cara a cara contra el anterior, dentro del margen de error: ±1,7 % y ±2,2 % con
-   2.000 partidas) y tiene que mejorar en algo medible: ganar cara a cara o ser más difícil de
-   explotar (contra el cazador). Medir con
-   `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0`.
-2. **Cerrar el bot (en curso): v5.** Se empezó y se paró en la iteración 22. Para retomarlo,
-   en el ordenador de Pablo (necesita `checkpoints/`), en dos tramos de 150 iteraciones (una
-   tarea en segundo plano se corta pasada aproximadamente una hora):
-   `python -m musarena.ia.entrenamiento.refuerzo --inicial src/musarena/ia/modelos/inteligente.npz
-   --ancla checkpoints/imitacion_v2.npz --cazadores checkpoints/cazador_v3/iter0150.npz
-   checkpoints/cazador_v4/iter0100.npz checkpoints/cazador_v4/iter0125.npz --peso-cazadores 0.35
-   --iteraciones 150 --evaluar-cada 25 --partidas-evaluacion 1000 --recompensa vaca+farol
-   --bonus-farol 0.2 --seed 6 --salida checkpoints/v5a`. El segundo tramo parte de
-   `checkpoints/v5a/iter0150.npz`. Después: confirmar con 2.000 partidas (contra `reglas`, cara a
-   cara contra el v4 y contra el cazador del v4), un cazador corto contra el v5 y **congelar el
-   modelo final** con el resultado que salga. Luego se pasa a la web, el torneo y la
-   documentación.
-3. Probar una red más grande (`--ocultas` en la imitación) y más partidas por iteración.
-4. **Semana 3 (sigue)**: búsqueda al decidir (simular manos posibles de los rivales según
-   las creencias).
-5. **Semana 4**: las partidas humanas ya se graban solas con `mus-play` (carpeta `partidas/`).
-   Con ellas: imitación de humanos (`datos.de_partidas`), regenerar la tabla de descartes y
-   medir contra personas. Más adelante, la web con torneos y
-   clasificaciones.
+1. **El bot está cerrado.** No cambiar `ia/modelos/inteligente.npz` salvo que un modelo nuevo
+   cumpla el criterio: no perder fuerza (contra `reglas` y cara a cara contra el anterior,
+   **con los mismos repartos** y dentro del margen de error: ±1,7 % y ±2,2 % con 2.000 partidas)
+   y mejorar en algo medible (cara a cara o contra el cazador). Medir con
+   `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0 --seed 77`.
+2. **Lo que falta del proyecto** (lo que promete el README):
+   - **torneo automático** en GitHub Actions con clasificación (`mus-torneo`, todos contra
+     todos);
+   - **interfaz web** para jugar desde el navegador (humanos y bots en cualquier asiento; las
+     partidas también se graban);
+   - **web de documentación** en GitHub Pages.
+3. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
+   demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
+4. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
+   `datos.de_partidas`, tabla de descartes humana, medir contra personas), más ciclos de
+   cazadores, búsqueda al decidir y una red más grande. Las tareas en segundo plano se cortan
+   pasada aproximadamente una hora: entrenar en tramos de 150 iteraciones.
 
 ## Comandos frecuentes
 ```bash
