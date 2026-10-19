@@ -25,10 +25,12 @@ import random
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 
 from musarena.match import Match
 from musarena.player import Player
 from musarena.players import BOTS, crear_jugador, es_tipo_valido
+from musarena.players.externos import cargar_clase, crear_externo, es_bot_externo
 from musarena.state import pareja
 
 
@@ -68,9 +70,13 @@ Fabrica = Callable[[int], Player]
 
 
 def fabrica(tipo: str | Fabrica) -> Fabrica:
-    """Convierte ``"reglas"``, ``"reglas:agresivo"`` (tipo y estilo) o una función en fábrica."""
+    """Convierte ``"reglas"``, ``"reglas:agresivo"`` (tipo y estilo), un archivo de bot
+    (``"bots/mi_bot.py"``) o una función en fábrica."""
     if callable(tipo):
         return tipo
+    if es_bot_externo(tipo):
+        cargar_clase(tipo)  # falla ya si el archivo no vale, no a mitad de las partidas
+        return partial(crear_externo, tipo)
     if tipo.partition(":")[0] not in BOTS or not es_tipo_valido(tipo):
         raise ValueError(f"En la arena solo juegan bots: {', '.join(BOTS)} (y estilos de reglas)")
     return lambda seed: crear_jugador(tipo, seed=seed)
@@ -134,7 +140,7 @@ def enfrentar(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mus-arena", description="Enfrenta dos tipos de bot.")
     ayuda = (f"bot: {', '.join(BOTS)} (con estilo: reglas:agresivo; con modelo: "
-             f"inteligente:ruta.npz)")
+             f"inteligente:ruta.npz; o un archivo de bot: bots/mi_bot.py)")
     parser.add_argument("tipo_a", help=ayuda)
     parser.add_argument("tipo_b", help=ayuda)
     parser.add_argument("-n", "--partidas", type=int, default=100)

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mus Arena</title>
+<link rel="icon" href="/estaticos/icono.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/estaticos/estilo.css">
+</head>
+<body>
+<header class="barra">
+  <a class="marca" href="#/">Mus Arena</a>
+  <nav>
+    <a href="#/" data-ruta="inicio">Jugar</a>
+    <a href="#/torneo" data-ruta="torneo">Torneo</a>
+    <a href="#/clasificacion" data-ruta="clasificacion">Clasificación</a>
+    <a href="#/reglas" data-ruta="reglas">Reglas</a>
+  </nav>
+</header>
+
+<main id="contenido">
+  <!-- INICIO: crear una mesa -->
+  <section id="vista-inicio" class="vista">
+    <div class="columna">
+      <h1>Una partida de mus</h1>
+      <p class="entradilla">Elige quién se sienta en cada asiento. Los humanos juegan desde su navegador, cada uno con su enlace; los bots juegan solos.</p>
+      <form id="form-mesa" class="tarjeta">
+        <div class="asientos">
+          <label>Jugador 1 <small>pareja A</small><select id="asiento-0"></select></label>
+          <label>Jugador 2 <small>pareja B</small><select id="asiento-1"></select></label>
+          <label>Jugador 3 <small>pareja A</small><select id="asiento-2"></select></label>
+          <label>Jugador 4 <small>pareja B</small><select id="asiento-3"></select></label>
+        </div>
+        <div class="fila">
+          <label>Partida al mejor de
+            <select id="mejor-de"><option value="3">3 vacas</option><option value="5">5 vacas</option></select>
+          </label>
+          <label>Velocidad de los bots
+            <select id="velocidad"><option value="rapida">Rápida</option><option value="normal">Normal</option><option value="lenta">Lenta</option></select>
+          </label>
+          <button type="submit" class="boton principal">Crear mesa</button>
+        </div>
+        <p id="error-mesa" class="error" hidden></p>
+      </form>
+      <div id="enlaces" class="tarjeta" hidden>
+        <h2>Mesa creada</h2>
+        <p>Cada humano entra con <strong>su</strong> enlace: es secreto, porque con él se ven sus cartas. Pásaselo solo a quien juegue en ese asiento.</p>
+        <ul id="lista-enlaces" class="enlaces"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- MESA -->
+  <section id="vista-mesa" class="vista" hidden>
+    <div class="mesa-layout">
+      <div class="columna-mesa">
+        <div class="tapete" id="tapete">
+          <div class="asiento-mesa arriba" data-rel="2"></div>
+          <div class="asiento-mesa izquierda" data-rel="3"></div>
+          <div class="asiento-mesa derecha" data-rel="1"></div>
+          <div class="centro" id="centro"></div>
+          <div class="asiento-mesa abajo" data-rel="0"></div>
+        </div>
+        <div class="acciones" id="acciones" aria-live="polite"></div>
+      </div>
+      <aside class="lateral">
+        <div class="marcador tarjeta" id="marcador"></div>
+        <div class="tarjeta historial-caja">
+          <h3>Lo que ha pasado</h3>
+          <ol id="historial" class="historial"></ol>
+        </div>
+        <div class="tarjeta chat-caja">
+          <h3>Chat</h3>
+          <ol id="chat" class="chat"></ol>
+          <form id="form-chat" class="fila"><input id="texto-chat" maxlength="200" placeholder="Escribe a la mesa" autocomplete="off" aria-label="Mensaje para la mesa"><button class="boton" type="submit">Enviar</button></form>
+        </div>
+      </aside>
+    </div>
+    <div class="resumen-mano" id="resumen-mano" hidden></div>
+  </section>
+
+  <!-- TORNEO -->
+  <section id="vista-torneo" class="vista" hidden>
+    <div class="columna ancha">
+      <h1>Torneo de bots</h1>
+      <p class="entradilla">Todos contra todos, con repartos duplicados para que la suerte se compense. La clasificación va por Elo (modelo de Bradley-Terry) y por porcentaje de victorias.</p>
+      <form id="form-torneo" class="tarjeta">
+        <fieldset><legend>Participantes</legend><div id="participantes" class="casillas"></div></fieldset>
+        <div class="fila">
+          <label>Partidas por cruce <input id="partidas-torneo" type="number" min="2" step="2" value="40"></label>
+          <button type="submit" class="boton principal" id="lanzar-torneo">Lanzar torneo</button>
+        </div>
+        <p id="error-torneo" class="error" hidden></p>
+      </form>
+      <div id="progreso-torneo" class="tarjeta" hidden>
+        <p id="texto-progreso">Jugando…</p>
+        <div class="barra-progreso"><div id="barra-progreso"></div></div>
+      </div>
+      <div id="resultado-torneo"></div>
+    </div>
+  </section>
+
+  <!-- CLASIFICACIÓN -->
+  <section id="vista-clasificacion" class="vista" hidden>
+    <div class="columna ancha">
+      <h1>Clasificación</h1>
+      <p class="entradilla">La última clasificación publicada del torneo automático.</p>
+      <div id="clasificacion"></div>
+    </div>
+  </section>
+
+  <!-- REGLAS -->
+  <section id="vista-reglas" class="vista" hidden>
+    <article class="columna reglas" id="reglas"></article>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="/estaticos/app.js"></script>
+</body>
+</html>

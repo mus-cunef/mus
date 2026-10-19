@@ -1,0 +1,216 @@
+{
+ "fecha": "2026-10-19T18:48:29",
+ "segundos": 12.7,
+ "partidas_por_cruce": 200,
+ "mejor_de": 3,
+ "seed": 0,
+ "participantes": [
+  "random",
+  "basico",
+  "reglas",
+  "inteligente",
+  "reglas:agresivo",
+  "reglas:conservador",
+  "bots/prudente.py"
+ ],
+ "clasificacion": [
+  {
+   "puesto": 1,
+   "participante": "inteligente",
+   "nombre": "inteligente",
+   "partidas": 1200,
+   "victorias": 1009,
+   "porcentaje": 0.8408,
+   "margen_95": 0.0207,
+   "elo": 1790.9
+  },
+  {
+   "puesto": 2,
+   "participante": "reglas",
+   "nombre": "reglas",
+   "partidas": 1200,
+   "victorias": 735,
+   "porcentaje": 0.6125,
+   "margen_95": 0.0276,
+   "elo": 1596.8
+  },
+  {
+   "puesto": 3,
+   "participante": "reglas:agresivo",
+   "nombre": "reglas:agresivo",
+   "partidas": 1200,
+   "victorias": 735,
+   "porcentaje": 0.6125,
+   "margen_95": 0.0276,
+   "elo": 1596.8
+  },
+  {
+   "puesto": 4,
+   "participante": "reglas:conservador",
+   "nombre": "reglas:conservador",
+   "partidas": 1200,
+   "victorias": 731,
+   "porcentaje": 0.6092,
+   "margen_95": 0.0276,
+   "elo": 1594.2
+  },
+  {
+   "puesto": 5,
+   "participante": "basico",
+   "nombre": "basico",
+   "partidas": 1200,
+   "victorias": 503,
+   "porcentaje": 0.4192,
+   "margen_95": 0.0279,
+   "elo": 1450.8
+  },
+  {
+   "puesto": 6,
+   "participante": "bots/prudente.py",
+   "nombre": "prudente",
+   "partidas": 1200,
+   "victorias": 403,
+   "porcentaje": 0.3358,
+   "margen_95": 0.0267,
+   "elo": 1383.4
+  },
+  {
+   "puesto": 7,
+   "participante": "random",
+   "nombre": "random",
+   "partidas": 1200,
+   "victorias": 84,
+   "porcentaje": 0.07,
+   "margen_95": 0.0144,
+   "elo": 1087.1
+  }
+ ],
+ "cruces": [
+  {
+   "a": "random",
+   "b": "basico",
+   "victorias_a": 17,
+   "partidas": 200
+  },
+  {
+   "a": "random",
+   "b": "reglas",
+   "victorias_a": 14,
+   "partidas": 200
+  },
+  {
+   "a": "random",
+   "b": "inteligente",
+   "victorias_a": 10,
+   "partidas": 200
+  },
+  {
+   "a": "random",
+   "b": "reglas:agresivo",
+   "victorias_a": 16,
+   "partidas": 200
+  },
+  {
+   "a": "random",
+   "b": "reglas:conservador",
+   "victorias_a": 14,
+   "partidas": 200
+  },
+  {
+   "a": "random",
+   "b": "bots/prudente.py",
+   "victorias_a": 13,
+   "partidas": 200
+  },
+  {
+   "a": "basico",
+   "b": "reglas",
+   "victorias_a": 55,
+   "partidas": 200
+  },
+  {
+   "a": "basico",
+   "b": "inteligente",
+   "victorias_a": 45,
+   "partidas": 200
+  },
+  {
+   "a": "basico",
+   "b": "reglas:agresivo",
+   "victorias_a": 52,
+   "partidas": 200
+  },
+  {
+   "a": "basico",
+   "b": "reglas:conservador",
+   "victorias_a": 43,
+   "partidas": 200
+  },
+  {
+   "a": "basico",
+   "b": "bots/prudente.py",
+   "victorias_a": 125,
+   "partidas": 200
+  },
+  {
+   "a": "reglas",
+   "b": "inteligente",
+   "victorias_a": 36,
+   "partidas": 200
+  },
+  {
+   "a": "reglas",
+   "b": "reglas:agresivo",
+   "victorias_a": 101,
+   "partidas": 200
+  },
+  {
+   "a": "reglas",
+   "b": "reglas:conservador",
+   "victorias_a": 105,
+   "partidas": 200
+  },
+  {
+   "a": "reglas",
+   "b": "bots/prudente.py",
+   "victorias_a": 162,
+   "partidas": 200
+  },
+  {
+   "a": "inteligente",
+   "b": "reglas:agresivo",
+   "victorias_a": 169,
+   "partidas": 200
+  },
+  {
+   "a": "inteligente",
+   "b": "reglas:conservador",
+   "victorias_a": 161,
+   "partidas": 200
+  },
+  {
+   "a": "inteligente",
+   "b": "bots/prudente.py",
+   "victorias_a": 170,
+   "partidas": 200
+  },
+  {
+   "a": "reglas:agresivo",
+   "b": "reglas:conservador",
+   "victorias_a": 108,
+   "partidas": 200
+  },
+  {
+   "a": "reglas:agresivo",
+   "b": "bots/prudente.py",
+   "victorias_a": 165,
+   "partidas": 200
+  },
+  {
+   "a": "reglas:conservador",
+   "b": "bots/prudente.py",
+   "victorias_a": 162,
+   "partidas": 200
+  }
+ ]
+}
