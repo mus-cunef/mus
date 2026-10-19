@@ -44,6 +44,7 @@ ESTATICOS = resources.files("musarena.web") / "estaticos"
 class NuevaMesa(BaseModel):
     asientos: list[str] = Field(min_length=4, max_length=4)
     mejor_de: int = 3
+    velocidad: str = "rapida"
 
 
 class Jugada(BaseModel):
@@ -108,7 +109,7 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     @app.post("/api/mesas")
     def crear_mesa(datos: NuevaMesa) -> dict:
-        mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de)
+        mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de, datos.velocidad)
         return {"mesa": mesa.id,
                 "asientos": [{"asiento": a, "tipo": etiqueta(t), "token": mesa.tokens.get(a)}
                              for a, t in enumerate(mesa.tipos)]}

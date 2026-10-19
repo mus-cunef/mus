@@ -27,7 +27,7 @@ class Config:
     #: Minutos sin actividad tras los que se cierra una mesa.
     minutos_inactiva: int = 120
     #: Segundos entre jugada y jugada de los bots (para que se vea lo que hacen).
-    pausa_bots: float = 0.8
+    pausa_bots: float = 0.6
     #: Partidas por cruce como máximo en un torneo lanzado desde la web.
     max_partidas_torneo: int = 400
     #: Procesos para los torneos (0 = todos los núcleos).

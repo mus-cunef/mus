@@ -37,6 +37,9 @@ from musarena.web.vista import vista
 
 HUMANO = "humano"
 
+#: Velocidad de los bots: multiplica la pausa entre jugadas (``Config.pausa_bots``).
+VELOCIDADES: dict[str, float] = {"rapida": 0.5, "normal": 1.0, "lenta": 2.0}
+
 
 class ErrorMesa(Exception):
     """Petición rechazada; ``codigo`` es el código HTTP con el que se responde."""
@@ -77,6 +80,7 @@ class Mesa:
     mejor_de: int
     config: Config
     reloj: Callable[[], float] = time.monotonic
+    velocidad: str = "rapida"
     id: str = field(default_factory=lambda: secrets.token_urlsafe(9))
     seed: int = field(default_factory=lambda: random.SystemRandom().randrange(2**32))
 
@@ -85,6 +89,9 @@ class Mesa:
             raise ErrorMesa("Hacen falta 4 asientos")
         if self.mejor_de not in (3, 5):
             raise ErrorMesa("La partida es al mejor de 3 o de 5 vacas")
+        if self.velocidad not in VELOCIDADES:
+            raise ErrorMesa(f"Velocidad no válida: {self.velocidad!r}")
+        self.pausa = self.config.pausa_bots * VELOCIDADES[self.velocidad]
         if HUMANO not in self.tipos:
             raise ErrorMesa("Tiene que jugar al menos un humano")
         permitidos = set(tipos_permitidos(self.config))
@@ -108,7 +115,7 @@ class Mesa:
         self.grabada = False
         self.lock = threading.Lock()
         self.ultima_actividad = self.reloj()
-        self.proxima_jugada_bot = self.reloj() + self.config.pausa_bots
+        self.proxima_jugada_bot = self.reloj() + self.pausa
 
     # --- Quién es quién -------------------------------------------------------------------
 
@@ -130,7 +137,7 @@ class Mesa:
 
     def _despues_de_jugar(self) -> None:
         self.version += 1
-        self.proxima_jugada_bot = self.reloj() + self.config.pausa_bots
+        self.proxima_jugada_bot = self.reloj() + self.pausa
         if self.match.terminada and not self.grabada:
             self._grabar()
 
@@ -145,7 +152,7 @@ class Mesa:
             while self._le_toca_a_un_bot() and self.reloj() >= self.proxima_jugada_bot:
                 self.match.step()
                 self._despues_de_jugar()
-                if self.config.pausa_bots > 0:
+                if self.pausa > 0:
                     break
 
     def vista(self, token: str) -> dict:
@@ -198,12 +205,12 @@ class GestorMesas:
         self._mesas: dict[str, Mesa] = {}
         self._lock = threading.Lock()
 
-    def crear(self, tipos: Sequence[str], mejor_de: int = 3) -> Mesa:
+    def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "rapida") -> Mesa:
         self.limpiar()
         with self._lock:
             if len(self._mesas) >= self.config.max_mesas:
                 raise ErrorMesa("Hay demasiadas mesas abiertas; prueba dentro de un rato", 503)
-            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj)
+            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj, velocidad)
             self._mesas[mesa.id] = mesa
             return mesa
 
