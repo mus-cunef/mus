@@ -21,13 +21,34 @@ siempre el porqué de las decisiones.
 - `docs/bots.md`: cómo funcionan los bots `random`, `basico` y `reglas`, y cómo escribir uno.
 - `docs/inteligente.md`: plan del bot inteligente, experimentos y resultados medidos. Es el
   cuaderno de laboratorio: cada experimento nuevo se apunta ahí con sus números.
-- La rúbrica de la asignatura valora:
-  - una librería Python instalable con la que se pueda jugar una partida completa desde código;
-  - que no se puedan hacer jugadas ilegales, que el juego sea robusto y que cada jugador reciba
-    solo su información;
-  - un API público de bots que no obligue a tocar el motor;
-  - tests automáticos en cada Pull Request;
-  - ramas + PRs y un repo ordenado.
+- **Enunciado oficial de la práctica:** `IA_MAT_2627_practicas.pdf` (Javier Paris; no está en el
+  repo, lo tiene cada miembro). Proyecto de ejemplo del profesor: https://github.com/jparisu/nim-arena
+  y su guía técnica: https://nim-arena.readthedocs.io/en/latest/guide/. Se evalúa **por
+  requisitos** y solo cuentan los que se **defienden** oralmente (ver el apartado "Requisitos
+  oficiales" más abajo).
+
+## Requisitos oficiales (enunciado) y estado
+
+| Req | Requisito | Puntos | Estado |
+| --- | --- | --- | --- |
+| — | Juego por turnos **de 2 jugadores, validado por el profesor** | condición | Mus = 2 parejas: **confirmar que el profesor lo validó** |
+| 1.1 | Lógica en librería Python instalable; partida completa desde código | 1.5 | Hecho |
+| 1.2 | Interfaz web: una persona juega una partida completa contra un bot | 1.0 | Hecho (`mus-web`) |
+| 1.3 | Web publicada en URL pública, sin instalar nada | 0.5 | Hecho: https://mus-81o1.onrender.com |
+| 2.1 | API público en Python: un bot se escribe sin tocar el juego | 1.0 | Hecho (`Player`, `bots/`) |
+| 2.2 | Tests automáticos que comprueban los bots nuevos antes de incluirlos | 0.5 | **Falta** un test que valide cada bot de `bots/` |
+| 2.3 | Documentación **publicada online** con referencia del API y tutorial de principio a fin | 0.5 | **Falta** (MkDocs + ReadTheDocs o GitHub Pages) |
+| 3.1 | Bot propio (0.5 × dificultad) | ≤ 5 | Hecho (`inteligente`, `reglas`) |
+| 3.2 | Bot para el juego de **otro equipo**, por PR | 0.5 × dif. | **Falta** |
+| 3.3 | Bot externo recibido por PR, revisado y fusionado | 0.25/bot | **Falta** (pedirlo a otros equipos) |
+| 4.1 | Torneo de todos los bots; un bot que **falla, se cuelga o juega ilegal pierde la partida pero no rompe el torneo** | 1.0 | Torneo hecho; **falta** la robustez (hoy un bot que falla rompe el torneo) |
+| 4.2 | Clasificación publicada y actualizada automáticamente | 0.5 | Parcial: la Action la publica en su resumen; **mejor en una página** (web/docs) |
+| C.1 | Repo público y ordenado (README, LICENSE, .gitignore) | 0.5 | Hecho |
+| C.2 | Ramas y PRs, y **`main` protegida** | 0.5 | Ramas y PRs sí; **`main` no está protegida** |
+| C.3 | Tests automáticos en cada PR | 0.5 | Hecho |
+
+Uso de IA (enunciado, 5.8): permitido para código, tests y documentación, **solo con herramientas
+gratuitas o con licencia de la universidad**; todo tiene que poder explicarse en la defensa.
 
 ## Arquitectura
 ```
@@ -176,12 +197,9 @@ Principios:
    **con los mismos repartos** y dentro del margen de error: ±1,7 % y ±2,2 % con 2.000 partidas)
    y mejorar en algo medible (cara a cara o contra el cazador). Medir con
    `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0 --seed 77`.
-2. **Lo que falta del proyecto** (lo que promete el README):
-   - ~~torneo automático~~ **hecho** (`mus-torneo`, Action `torneo.yml`, `docs/clasificacion.md`);
-   - ~~interfaz web~~ **hecha** (`mus-web`, `docs/web.md`), con apartado de torneo. Falta
-     **publicarla** en internet (el `Dockerfile` está listo; por ejemplo en Hugging Face Spaces,
-     tipo Docker).
-   - **web de documentación** en GitHub Pages.
+2. **Lo que falta del proyecto**: ver la tabla de "Requisitos oficiales" (lo marcado como
+   **Falta**). La web ya está publicada en https://mus-81o1.onrender.com (Render, se publica
+   sola al fusionar en `main`; configuración en `docs/web.md`).
 3. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 4. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
