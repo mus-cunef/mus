@@ -62,13 +62,15 @@ def cargar_clase(tipo: str) -> type[Player]:
     return clases[0]
 
 
-def crear_externo(tipo: str, seed: int | None = None) -> Player:
-    """Crea el bot del archivo ``tipo`` con su semilla."""
+def crear_externo(tipo: str, seed: int | None = None, nombre: str | None = None) -> Player:
+    """Crea el bot del archivo ``tipo`` con su semilla (y su nombre, si la clase lo acepta)."""
     clase = cargar_clase(tipo)
-    try:
-        return clase(seed=seed)
-    except TypeError:
-        return clase()
+    for argumentos in ({"nombre": nombre, "seed": seed}, {"seed": seed}, {}):
+        try:
+            return clase(**argumentos)
+        except TypeError:
+            continue
+    return clase()
 
 
 def nombre_externo(tipo: str) -> str:

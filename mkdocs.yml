@@ -1,0 +1,77 @@
+# Documentación de Mus Arena: https://mus-cunef.github.io/mus/
+# Se publica sola con la Action .github/workflows/documentacion.yml (que antes juega el torneo
+# y actualiza la clasificación). En local: pip install -e ".[docs]" && mkdocs serve
+site_name: Mus Arena
+site_description: El mus de 4 jugadores en Python, con bots, web y torneo automático
+site_url: https://mus-cunef.github.io/mus/
+repo_url: https://github.com/mus-cunef/mus
+repo_name: mus-cunef/mus
+docs_dir: docs
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: es
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: red
+      toggle: {icon: material/weather-night, name: Modo oscuro}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: red
+      toggle: {icon: material/weather-sunny, name: Modo claro}
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+nav:
+  - Inicio: index.md
+  - Jugar en la web: web.md
+  - Reglas: reglas.md
+  - Programar un bot:
+      - Tutorial de principio a fin: tutorial-bot.md
+      - Cómo juegan los bots incluidos: bots.md
+  - Referencia del API:
+      - Jugadores: api/jugadores.md
+      - Observación: api/observacion.md
+      - Acciones: api/acciones.md
+      - Motor del juego: api/motor.md
+      - Partida: api/partida.md
+      - Arena y torneo: api/arena-torneo.md
+      - Estrategia: api/estrategia.md
+  - Clasificación: clasificacion.md
+  - Bot inteligente: inteligente.md
+
+plugins:
+  - search:
+      lang: es
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            extensions:
+              - herramientas/griffe_rest.py:ConvertirRest
+            docstring_style: sphinx
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            filters: ["!^_"]
+            heading_level: 3
+
+markdown_extensions:
+  - mdx_truly_sane_lists      # listas anidadas con 2 espacios, como en GitHub
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.details

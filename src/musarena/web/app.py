@@ -24,6 +24,8 @@ enlace (esa parte nunca se manda a ningún servidor), así no queda en registros
 from __future__ import annotations
 
 import json
+import time
+import urllib.request
 from importlib import resources
 
 from fastapi import FastAPI, Header, Request
@@ -151,8 +153,22 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     def ver_torneo(torneo_id: str) -> dict:
         return app.state.torneos.obtener(torneo_id).a_dict()
 
+    cache: dict = {"datos": None, "hora": -1e9}
+
     @app.get("/api/clasificacion")
     def clasificacion() -> dict:
+        """La clasificación publicada (como mucho de hace 10 minutos) o, si no se puede leer,
+        la del archivo del repositorio."""
+        if config.clasificacion_url and time.monotonic() - cache["hora"] > 600:
+            try:
+                with urllib.request.urlopen(config.clasificacion_url, timeout=4) as respuesta:
+                    datos = json.loads(respuesta.read().decode("utf-8"))
+                if isinstance(datos, dict) and "clasificacion" in datos:
+                    cache.update(datos=datos, hora=time.monotonic())
+            except (OSError, ValueError):
+                cache["hora"] = time.monotonic() - 540  # se reintenta en un minuto
+        if cache["datos"] is not None:
+            return cache["datos"]
         ruta = config.ruta("clasificacion")
         if not ruta.is_file():
             raise ErrorMesa("Todavía no hay ninguna clasificación publicada", 404)

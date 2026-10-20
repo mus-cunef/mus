@@ -56,7 +56,10 @@ def participantes_por_defecto(carpeta_bots: str | Path = "bots") -> list[str]:
 def nombre(participante: str) -> str:
     """Nombre corto para la clasificación."""
     if es_bot_externo(participante):
-        return nombre_externo(participante)
+        try:
+            return nombre_externo(participante)
+        except Exception:  # un archivo de bot roto también tiene nombre en la clasificación
+            return Path(participante.partition(".py")[0]).name
     if participante.startswith("inteligente:"):
         return "inteligente:" + Path(participante.partition(":")[2]).stem
     return participante
@@ -74,6 +77,7 @@ class Fila:
     porcentaje: float
     margen_95: float
     elo: float
+    faltas: int = 0
 
 
 @dataclass
@@ -86,6 +90,9 @@ class ResultadoTorneo:
     cruces: dict[tuple[str, str], tuple[int, int]] = field(default_factory=dict)
     fecha: str = ""
     segundos: float = 0.0
+    #: Partidas perdidas por faltas de cada participante y algunos motivos (ver vigilancia).
+    faltas: dict[str, int] = field(default_factory=dict)
+    incidencias: dict[str, list[str]] = field(default_factory=dict)
 
     def victorias(self, a: str, b: str) -> tuple[int, int]:
         """(victorias de a contra b, partidas entre los dos)."""
@@ -131,7 +138,7 @@ class ResultadoTorneo:
             margen = 1.96 * math.sqrt(pct * (1 - pct) / n) if n else 0.0
             filas.append((elo[p], p, n, v, pct, margen))
         filas.sort(key=lambda f: -f[0])
-        return [Fila(i + 1, p, nombre(p), n, v, pct, margen, e)
+        return [Fila(i + 1, p, nombre(p), n, v, pct, margen, e, self.faltas.get(p, 0))
                 for i, (e, p, n, v, pct, margen) in enumerate(filas)]
 
     def a_dict(self) -> dict:
@@ -147,9 +154,11 @@ class ResultadoTorneo:
                 {"puesto": f.puesto, "participante": f.participante, "nombre": f.nombre,
                  "partidas": f.partidas, "victorias": f.victorias,
                  "porcentaje": round(f.porcentaje, 4), "margen_95": round(f.margen_95, 4),
-                 "elo": round(f.elo, 1)}
+                 "elo": round(f.elo, 1), "faltas": f.faltas}
                 for f in self.tabla()
             ],
+            "incidencias": [{"participante": p, "nombre": nombre(p), "motivo": m}
+                            for p, motivos in self.incidencias.items() for m in motivos],
             "cruces": [{"a": a, "b": b, "victorias_a": v, "partidas": n}
                        for (a, b), (v, n) in self.cruces.items()],
         }
@@ -157,8 +166,13 @@ class ResultadoTorneo:
     @classmethod
     def desde_dict(cls, datos: dict) -> ResultadoTorneo:
         cruces = {(c["a"], c["b"]): (c["victorias_a"], c["partidas"]) for c in datos["cruces"]}
+        faltas = {f["participante"]: f.get("faltas", 0) for f in datos["clasificacion"]}
+        incidencias: dict[str, list[str]] = {}
+        for i in datos.get("incidencias", []):
+            incidencias.setdefault(i["participante"], []).append(i["motivo"])
         return cls(datos["participantes"], datos["partidas_por_cruce"], datos["mejor_de"],
-                   datos["seed"], cruces, datos.get("fecha", ""), datos.get("segundos", 0.0))
+                   datos["seed"], cruces, datos.get("fecha", ""), datos.get("segundos", 0.0),
+                   {k: v for k, v in faltas.items() if v}, incidencias)
 
     def a_markdown(self) -> str:
         """Clasificación y tabla de cruces en Markdown (para GitHub)."""
@@ -169,12 +183,13 @@ class ResultadoTorneo:
             f"{self.fecha} · {self.partidas_por_cruce} partidas por cruce, al mejor de "
             f"{self.mejor_de} vacas, con repartos duplicados · semilla {self.seed}",
             "",
-            "| Puesto | Bot | Elo | Victorias | Partidas | % (± 95 %) |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| Puesto | Bot | Elo | Victorias | Partidas | % (± 95 %) | Faltas |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
         ]
         for f in filas:
             lineas.append(f"| {f.puesto} | `{f.nombre}` | {f.elo:.0f} | {f.victorias} | "
-                          f"{f.partidas} | {f.porcentaje:.1%} ± {f.margen_95:.1%} |")
+                          f"{f.partidas} | {f.porcentaje:.1%} ± {f.margen_95:.1%} | "
+                          f"{f.faltas} |")
         orden = [f.participante for f in filas]
         lineas += ["", "## Cruces", "",
                    "% de victorias del bot de la fila contra el de la columna.", "",
@@ -189,6 +204,13 @@ class ResultadoTorneo:
                     v, n = self.victorias(a, b)
                     celdas.append(f"{v / n:.0%}")
             lineas.append(f"| `{nombre(a)}` | " + " | ".join(celdas) + " |")
+        if self.incidencias:
+            lineas += ["", "## Faltas", "",
+                       "Partidas perdidas porque el bot falló, se colgó o jugó ilegal "
+                       "(el torneo sigue igualmente):", ""]
+            for p, motivos in self.incidencias.items():
+                lineas.append(f"- `{nombre(p)}` ({self.faltas.get(p, 0)} partidas): "
+                              + "; ".join(motivos))
         return "\n".join(lineas) + "\n"
 
     def __str__(self) -> str:
@@ -198,13 +220,16 @@ class ResultadoTorneo:
         for f in filas:
             lineas.append(f"{f.puesto:>3}. {f.nombre:<{ancho}}  {f.elo:6.0f}  "
                           f"{f.victorias:>6}/{f.partidas:<7}  {f.porcentaje:5.1%} ± "
-                          f"{f.margen_95:.1%}")
+                          f"{f.margen_95:.1%}" + (f"  ({f.faltas} faltas)" if f.faltas else ""))
+        for p, motivos in self.incidencias.items():
+            lineas.append(f"  faltas de {nombre(p)}: " + "; ".join(motivos))
         return "\n".join(lineas)
 
 
-def _trozo(args: tuple[str, str, int, int, int]) -> tuple[str, str, ResultadoArena]:
-    a, b, partidas, mejor_de, seed = args
-    return a, b, enfrentar(a, b, partidas=partidas, mejor_de=mejor_de, seed=seed)
+def _trozo(args: tuple) -> tuple[str, str, ResultadoArena]:
+    a, b, partidas, mejor_de, seed, limite = args
+    return a, b, enfrentar(a, b, partidas=partidas, mejor_de=mejor_de, seed=seed,
+                           vigilar=True, limite_segundos=limite)
 
 
 def jugar_torneo(
@@ -214,6 +239,7 @@ def jugar_torneo(
     seed: int = 0,
     procesos: int = 1,
     al_progreso: Progreso | None = None,
+    limite_segundos: float | None = 5.0,
 ) -> ResultadoTorneo:
     """Juega el torneo todos contra todos y devuelve el resultado.
 
@@ -221,12 +247,18 @@ def jugar_torneo(
     ``"inteligente:ruta.npz"``) o archivos de bot (``"bots/mi_bot.py"``); por defecto,
     :func:`participantes_por_defecto`. ``procesos`` reparte las partidas entre varios núcleos
     (0 = todos). ``al_progreso(hechas, total)`` se llama al terminar cada trozo.
+
+    **Un bot que falla, se cuelga (tarda más de ``limite_segundos`` en una jugada) o juega
+    ilegal pierde esa partida, pero el torneo sigue** (ver :mod:`musarena.vigilancia`). Un
+    archivo de bot que ni siquiera se puede cargar pierde todas sus partidas. Las faltas
+    aparecen en la clasificación.
     """
     participantes = list(participantes or participantes_por_defecto())
     if len(set(participantes)) != len(participantes) or len(participantes) < 2:
         raise ValueError("Hacen falta al menos 2 participantes distintos")
     for p in participantes:
-        fabrica(p)  # comprueba que todos son válidos antes de empezar
+        if not es_bot_externo(p):
+            fabrica(p)  # los del registro tienen que existir; los externos los vigila la arena
     partidas_por_cruce = max(2, partidas_por_cruce // 2 * 2)
     procesos = procesos or os.cpu_count() or 1
 
@@ -234,7 +266,8 @@ def jugar_torneo(
     for k, (a, b) in enumerate(itertools.combinations(participantes, 2)):
         for t, inicio in enumerate(range(0, partidas_por_cruce, _TROZO)):
             n = min(_TROZO, partidas_por_cruce - inicio)
-            tareas.append((a, b, n, mejor_de, seed * 1_000_003 + k * 1_009 + t))
+            tareas.append((a, b, n, mejor_de, seed * 1_000_003 + k * 1_009 + t,
+                           limite_segundos))
     total = sum(t[2] for t in tareas)
 
     resultado = ResultadoTorneo(participantes, partidas_por_cruce, mejor_de, seed,
@@ -246,6 +279,11 @@ def jugar_torneo(
         nonlocal hechas
         v, n = resultado.cruces.get((a, b), (0, 0))
         resultado.cruces[(a, b)] = (v + r.victorias_a, n + r.partidas)
+        for p, faltas, motivos in ((a, r.faltas_a, r.motivos_a), (b, r.faltas_b, r.motivos_b)):
+            if faltas:
+                resultado.faltas[p] = resultado.faltas.get(p, 0) + faltas
+                lista = resultado.incidencias.setdefault(p, [])
+                lista.extend(m for m in motivos if m not in lista and len(lista) < 5)
         hechas += r.partidas
         if al_progreso is not None:
             al_progreso(hechas, total)
@@ -275,6 +313,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("-p", "--procesos", type=int, default=0,
                         help="procesos en paralelo (0 = todos los núcleos)")
+    parser.add_argument("--limite", type=float, default=5.0,
+                        help="segundos por jugada; quien tarde más pierde la partida")
     parser.add_argument("--json", help="guardar el resultado completo en este archivo JSON")
     parser.add_argument("--markdown", help="guardar la clasificación en este archivo Markdown")
     args = parser.parse_args(argv)
@@ -292,7 +332,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  {porcentaje:3d} % ({hechas}/{total} partidas)", flush=True)
 
     resultado = jugar_torneo(participantes, args.partidas, args.mejor_de, args.seed,
-                             args.procesos, progreso)
+                             args.procesos, progreso, args.limite)
     print()
     print(resultado)
     print(f"\n({resultado.segundos:.0f} s)")

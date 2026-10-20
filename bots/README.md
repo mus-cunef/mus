@@ -14,6 +14,15 @@ se prueba un bot propio sin tocar la librería.
    mus-torneo                                      # el torneo completo, con tu bot
    ```
 
+**Antes de fusionarlo**, la CI examina automáticamente cada bot de esta carpeta
+(`tests/test_bots_nuevos.py`): que se cargue y tenga un `tipo` propio, que juegue partidas
+completas contra `random` y `reglas` **sin ninguna falta** (sin errores, sin jugadas ilegales y
+sin tardar más de 2 segundos por jugada) y que sea reproducible con la misma semilla (usa
+`self.rng`, no `random`). Puedes pasarlo tú antes: `pytest tests/test_bots_nuevos.py`.
+
+En el torneo, un bot que falla, se cuelga o juega ilegal **pierde esa partida** y aparece en la
+columna de faltas, pero el torneo sigue.
+
 Reglas: el bot no puede ver el estado completo (solo su `Observation`), y si devuelve una
 acción ilegal la partida se detiene con `IllegalActionError`. Los archivos que empiezan por `_`
 no participan. Si un archivo tiene varias clases de bot, se indica cuál con

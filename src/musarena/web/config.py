@@ -11,6 +11,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+#: La clasificación que publica la Action del torneo en la documentación.
+URL_CLASIFICACION = "https://mus-cunef.github.io/mus/clasificacion.json"
+
 
 def _entero(nombre: str, defecto: int) -> int:
     try:
@@ -40,6 +43,9 @@ class Config:
     carpeta_bots: str = "bots"
     #: Archivo con la última clasificación publicada.
     clasificacion: str = "docs/clasificacion.json"
+    #: Dónde se publica la clasificación actualizada (la Action la sube a GitHub Pages cada vez
+    #: que se fusiona algo y cada lunes). Vacío = usar solo el archivo local.
+    clasificacion_url: str = ""
     #: Archivo con las reglas.
     reglas: str = "docs/reglas.md"
 
@@ -55,6 +61,8 @@ class Config:
             carpeta_partidas=os.environ.get("MUS_PARTIDAS", "partidas"),
             carpeta_bots=os.environ.get("MUS_BOTS", "bots"),
             clasificacion=os.environ.get("MUS_CLASIFICACION", "docs/clasificacion.json"),
+            clasificacion_url=os.environ.get(
+                "MUS_CLASIFICACION_URL", URL_CLASIFICACION if publico else ""),
             reglas=os.environ.get("MUS_REGLAS", "docs/reglas.md"),
         )
 

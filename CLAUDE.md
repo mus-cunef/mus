@@ -36,15 +36,15 @@ siempre el porqué de las decisiones.
 | 1.2 | Interfaz web: una persona juega una partida completa contra un bot | 1.0 | Hecho (`mus-web`) |
 | 1.3 | Web publicada en URL pública, sin instalar nada | 0.5 | Hecho: https://mus-81o1.onrender.com |
 | 2.1 | API público en Python: un bot se escribe sin tocar el juego | 1.0 | Hecho (`Player`, `bots/`) |
-| 2.2 | Tests automáticos que comprueban los bots nuevos antes de incluirlos | 0.5 | **Falta** un test que valide cada bot de `bots/` |
-| 2.3 | Documentación **publicada online** con referencia del API y tutorial de principio a fin | 0.5 | **Falta** (MkDocs + ReadTheDocs o GitHub Pages) |
+| 2.2 | Tests automáticos que comprueban los bots nuevos antes de incluirlos | 0.5 | Hecho: `tests/test_bots_nuevos.py` examina cada bot de `bots/` en la CI |
+| 2.3 | Documentación **publicada online** con referencia del API y tutorial de principio a fin | 0.5 | Hecho: https://mus-cunef.github.io/mus/ (MkDocs + GitHub Pages; API generada de los docstrings; `docs/tutorial-bot.md`) |
 | 3.1 | Bot propio (0.5 × dificultad) | ≤ 5 | Hecho (`inteligente`, `reglas`) |
 | 3.2 | Bot para el juego de **otro equipo**, por PR | 0.5 × dif. | **Falta** |
 | 3.3 | Bot externo recibido por PR, revisado y fusionado | 0.25/bot | **Falta** (pedirlo a otros equipos) |
-| 4.1 | Torneo de todos los bots; un bot que **falla, se cuelga o juega ilegal pierde la partida pero no rompe el torneo** | 1.0 | Torneo hecho; **falta** la robustez (hoy un bot que falla rompe el torneo) |
-| 4.2 | Clasificación publicada y actualizada automáticamente | 0.5 | Parcial: la Action la publica en su resumen; **mejor en una página** (web/docs) |
+| 4.1 | Torneo de todos los bots; un bot que **falla, se cuelga o juega ilegal pierde la partida pero no rompe el torneo** | 1.0 | Hecho: `vigilancia.py` (faltas en la clasificación; `tests/test_vigilancia.py`) |
+| 4.2 | Clasificación publicada y actualizada automáticamente | 0.5 | Hecho: la Action `documentacion.yml` juega el torneo y la publica en https://mus-cunef.github.io/mus/clasificacion/ (y la web la lee de ahí) |
 | C.1 | Repo público y ordenado (README, LICENSE, .gitignore) | 0.5 | Hecho |
-| C.2 | Ramas y PRs, y **`main` protegida** | 0.5 | Ramas y PRs sí; **`main` no está protegida** |
+| C.2 | Ramas y PRs, y **`main` protegida** | 0.5 | Hecho: `main` protegida (PR obligatoria y CI en verde) |
 | C.3 | Tests automáticos en cada PR | 0.5 | Hecho |
 
 Uso de IA (enunciado, 5.8): permitido para código, tests y documentación, **solo con herramientas
@@ -87,6 +87,7 @@ src/musarena/
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos bots en muchas partidas con repartos duplicados (`mus-arena`)
+  vigilancia.py un bot que falla, se cuelga o juega ilegal pierde la partida (no rompe el torneo)
   torneo.py     torneo todos contra todos (`mus-torneo`): clasificación por Elo (Bradley-Terry)
                 y %; jugar_torneo(..., al_progreso=) y ResultadoTorneo.a_dict() para la web
   grabacion.py  grabar partidas (semilla + acciones, JSON en partidas/) y reproducirlas para
@@ -96,7 +97,10 @@ src/musarena/
                 internet con MUS_PUBLICO=1), vista.py (lo que ve cada asiento: solo su
                 Observation), mesas.py (mesas con humanos y bots), torneos.py (torneos en
                 segundo plano), app.py (FastAPI), estaticos/ (HTML, CSS y JS sin compilar)
-bots/           bots externos: cada .py entra solo en el torneo (prudente.py es el ejemplo)
+bots/           bots externos: cada .py entra solo en el torneo (prudente.py es el ejemplo);
+                tests/test_bots_nuevos.py los examina en la CI
+docs/ + mkdocs.yml  documentación online (https://mus-cunef.github.io/mus/); herramientas/griffe_rest.py convierte
+                los docstrings reST a Markdown para la referencia del API
 tests/          pytest (helpers.py tiene utilidades comunes)
 ```
 
@@ -156,8 +160,10 @@ Principios:
   (`--contra`); las debilidades que encuentre se tapan metiéndolo en la liga (`--cazadores`).
 - **Torneo**: todos contra todos con repartos duplicados, clasificación por Elo (Bradley-Terry,
   que tiene en cuenta contra quién se gana) y por %. La misma función (`torneo.jugar_torneo`)
-  sirve para la terminal, para GitHub Actions (`.github/workflows/torneo.yml`, que publica la
-  clasificación en el resumen de la ejecución) y para la **web**, donde será un apartado propio.
+  sirve para la terminal, para GitHub Actions (`.github/workflows/documentacion.yml`, que juega
+  el torneo y publica la clasificación en la documentación) y para la **web** (apartado propio).
+  Cada bot juega vigilado: un fallo, un cuelgue (5 s por jugada) o una jugada ilegal pierde
+  esa partida y queda como falta.
 - **Web:** FastAPI y una página sin herramientas de compilación, **pensada para internet desde
   el principio**: solo se manda la `Observation` de cada asiento, códigos secretos detrás del
   `#`, versión en cada jugada, chat como texto y límites (modo `MUS_PUBLICO=1`). Varios humanos
@@ -197,9 +203,10 @@ Principios:
    **con los mismos repartos** y dentro del margen de error: ±1,7 % y ±2,2 % con 2.000 partidas)
    y mejorar en algo medible (cara a cara o contra el cazador). Medir con
    `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0 --seed 77`.
-2. **Lo que falta del proyecto**: ver la tabla de "Requisitos oficiales" (lo marcado como
-   **Falta**). La web ya está publicada en https://mus-81o1.onrender.com (Render, se publica
-   sola al fusionar en `main`; configuración en `docs/web.md`).
+2. **Lo que falta del proyecto**: ver la tabla de "Requisitos oficiales". Quedan **3.2** (un bot
+   para el juego de otro equipo, por PR) y **3.3** (bots externos recibidos por PR), que
+   dependen de otros equipos. La web está en https://mus-81o1.onrender.com y la documentación
+   en https://mus-cunef.github.io/mus/.
 3. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 4. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
@@ -217,5 +224,6 @@ mus-arena inteligente:checkpoints/x.npz reglas -n 2000 -p 0   # medir un modelo 
 mus-torneo -n 200                           # torneo de todos los bots (y los de bots/)
 mus-web --red                               # la web (también desde el móvil)
 pytest tests/test_web_navegador.py          # la web en Chrome (antes de cada PR de la web)
+mkdocs serve                                # la documentación en local (extra [docs])
 python -m musarena.ia.entrenamiento.refuerzo --help           # entrenar
 ```

@@ -20,6 +20,9 @@ ia = ["torch>=2.2"]
 web = ["fastapi>=0.110", "uvicorn>=0.29"]
 # Pruebas de la web en un navegador de verdad (usa el Chrome instalado).
 e2e = ["playwright>=1.40"]
+# La documentación online (mkdocs serve / mkdocs build). MkDocs 2 rompe los plugins: se fija la 1.x.
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5", "mkdocstrings[python]>=0.26",
+        "mdx_truly_sane_lists>=1.3"]
 
 [project.scripts]
 mus-play = "musarena.cli:main"

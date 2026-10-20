@@ -30,8 +30,8 @@ class MiBot(Bot):
 
 Un bot también puede vivir en un archivo aparte: cualquier `.py` de la carpeta `bots/` que defina
 una clase de bot entra solo en el torneo (`mus-torneo`) y se puede enfrentar en la arena por su
-ruta (`mus-arena bots/mi_bot.py reglas`). [`bots/prudente.py`](../bots/prudente.py) es un ejemplo
-completo y [`bots/README.md`](../bots/README.md) explica los pasos. Se carga con
+ruta (`mus-arena bots/mi_bot.py reglas`). [`bots/prudente.py`](https://github.com/mus-cunef/mus/blob/main/bots/prudente.py) es un ejemplo
+completo y [`bots/README.md`](https://github.com/mus-cunef/mus/blob/main/bots/README.md) explica los pasos. Se carga con
 `musarena.players.externos`.
 
 ## Bots disponibles

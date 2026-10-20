@@ -32,6 +32,8 @@ from musarena.player import Player
 from musarena.players import BOTS, crear_jugador, es_tipo_valido
 from musarena.players.externos import cargar_clase, crear_externo, es_bot_externo
 from musarena.state import pareja
+from musarena.vigilancia import FaltaDeBot
+from musarena.vigilancia import vigilar as _vigilar
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,11 @@ class ResultadoArena:
     victorias_a: int
     vacas_a: int
     vacas_b: int
+    #: Partidas perdidas por faltas (el bot falló, se colgó o jugó ilegal) y algunos motivos.
+    faltas_a: int = 0
+    faltas_b: int = 0
+    motivos_a: tuple[str, ...] = ()
+    motivos_b: tuple[str, ...] = ()
 
     @property
     def victorias_b(self) -> int:
@@ -58,11 +65,17 @@ class ResultadoArena:
         return 1.96 * math.sqrt(p * (1 - p) / self.partidas)
 
     def __str__(self) -> str:
-        return (
+        texto = (
             f"{self.tipo_a} contra {self.tipo_b}: {self.victorias_a}-{self.victorias_b} "
             f"en {self.partidas} partidas ({self.porcentaje_a:.1%} ± {self.margen_95:.1%}); "
             f"vacas {self.vacas_a}-{self.vacas_b}"
         )
+        for nombre, faltas, motivos in ((self.tipo_a, self.faltas_a, self.motivos_a),
+                                        (self.tipo_b, self.faltas_b, self.motivos_b)):
+            if faltas:
+                texto += (f"\n  {nombre}: {faltas} partidas perdidas por faltas "
+                          f"({'; '.join(motivos)})")
+        return texto
 
 
 #: Crea un jugador a partir de una semilla (para enfrentar bots con parámetros a medida).
@@ -82,9 +95,20 @@ def fabrica(tipo: str | Fabrica) -> Fabrica:
     return lambda seed: crear_jugador(tipo, seed=seed)
 
 
-def _trozo(args: tuple[str | Fabrica, str | Fabrica, int, int, int]) -> ResultadoArena:
-    tipo_a, tipo_b, partidas, mejor_de, seed = args
-    return enfrentar(tipo_a, tipo_b, partidas, mejor_de, seed)
+def _crear_de(tipo: str, seed: int) -> Player:
+    return fabrica(tipo)(seed)
+
+
+def _trozo(args: tuple) -> ResultadoArena:
+    tipo_a, tipo_b, partidas, mejor_de, seed, vigilar, limite = args
+    return enfrentar(tipo_a, tipo_b, partidas, mejor_de, seed, vigilar=vigilar,
+                     limite_segundos=limite)
+
+
+def _juntar(motivos: list[str], nuevos: Sequence[str], maximo: int = 3) -> None:
+    for m in nuevos:
+        if m not in motivos and len(motivos) < maximo:
+            motivos.append(m)
 
 
 def enfrentar(
@@ -94,6 +118,8 @@ def enfrentar(
     mejor_de: int = 3,
     seed: int = 0,
     procesos: int = 1,
+    vigilar: bool = False,
+    limite_segundos: float | None = 5.0,
 ) -> ResultadoArena:
     """Juega ``partidas`` partidas entre una pareja de ``tipo_a`` y otra de ``tipo_b``.
 
@@ -102,39 +128,72 @@ def enfrentar(
     ``seed -> Player``. Con ``procesos`` > 1 las partidas se reparten entre varios procesos
     (cada trozo con su propia semilla, así que el resultado es otro, igual de reproducible);
     en ese caso las funciones tienen que poder enviarse a otro proceso (no valen lambdas).
+
+    Con ``vigilar=True`` (lo usa el torneo), un bot que falla, tarda más de ``limite_segundos``
+    en decidir o juega ilegal **pierde esa partida** y se sigue con la siguiente (ver
+    :mod:`musarena.vigilancia`); las faltas se cuentan en el resultado.
     """
-    crear = {"a": fabrica(tipo_a), "b": fabrica(tipo_b)}
+    if vigilar:  # hasta cargar el bot se vigila: un archivo roto también es una falta
+        crear = {k: _vigilar(partial(_crear_de, tipo) if isinstance(tipo, str) else fabrica(tipo),
+                             limite_segundos) for k, tipo in (("a", tipo_a), ("b", tipo_b))}
+    else:
+        crear = {"a": fabrica(tipo_a), "b": fabrica(tipo_b)}
     nombres = [t if isinstance(t, str) else getattr(t, "__name__", "bot") for t in (tipo_a, tipo_b)]
     if procesos > 1 and partidas >= 4:
         trozos = min(procesos * 4, partidas // 2)
         pares = partidas // 2  # cada reparto se juega dos veces
         por_trozo = [2 * (pares // trozos + (i < pares % trozos)) for i in range(trozos)]
         por_trozo[-1] += partidas % 2
-        tareas = [(tipo_a, tipo_b, n, mejor_de, seed * 1_000_003 + i)
+        tareas = [(tipo_a, tipo_b, n, mejor_de, seed * 1_000_003 + i, vigilar, limite_segundos)
                   for i, n in enumerate(por_trozo)]
         with ProcessPoolExecutor(procesos) as ex:
             res = list(ex.map(_trozo, tareas))
+        motivos_a: list[str] = []
+        motivos_b: list[str] = []
+        for r in res:
+            _juntar(motivos_a, r.motivos_a)
+            _juntar(motivos_b, r.motivos_b)
         return ResultadoArena(nombres[0], nombres[1], partidas,
                               sum(r.victorias_a for r in res), sum(r.vacas_a for r in res),
-                              sum(r.vacas_b for r in res))
+                              sum(r.vacas_b for r in res), sum(r.faltas_a for r in res),
+                              sum(r.faltas_b for r in res), tuple(motivos_a), tuple(motivos_b))
     semillas = random.Random(seed)
     victorias_a = vacas_a = vacas_b = 0
+    faltas = {"a": 0, "b": 0}
+    motivos: dict[str, list[str]] = {"a": [], "b": []}
     semilla_reparto = 0
     for i in range(partidas):
         a_en_pareja_0 = i % 2 == 0
         if a_en_pareja_0:
             semilla_reparto = semillas.randrange(2**32)  # la partida siguiente repite reparto
+        pareja_a = 0 if a_en_pareja_0 else 1
+        lado = {pareja_a: "a", 1 - pareja_a: "b"}
         jugadores = []
+        culpable = None  # pareja del bot que comete una falta
         for asiento in range(4):
             es_a = (pareja(asiento) == 0) == a_en_pareja_0
-            jugadores.append(crear["a" if es_a else "b"](semillas.randrange(2**32)))
-        match = Match(jugadores, mejor_de=mejor_de, seed=semilla_reparto)
-        ganadora = match.play()
-        pareja_a = 0 if a_en_pareja_0 else 1
+            try:
+                jugadores.append(crear["a" if es_a else "b"](semillas.randrange(2**32)))
+            except FaltaDeBot as falta:  # solo con vigilar: el bot ni siquiera se crea
+                culpable = culpable if culpable is not None else pareja(asiento)
+                _juntar(motivos[lado[pareja(asiento)]], [falta.motivo])
+        match = None
+        if culpable is None:
+            match = Match(jugadores, mejor_de=mejor_de, seed=semilla_reparto)
+            try:
+                ganadora = match.play()
+            except FaltaDeBot as falta:
+                culpable = pareja(falta.asiento)
+                _juntar(motivos[lado[culpable]], [falta.motivo])
+        if culpable is not None:  # pierde la pareja del bot que cometió la falta
+            ganadora = 1 - culpable
+            faltas[lado[culpable]] += 1
         victorias_a += ganadora == pareja_a
-        vacas_a += match.state.vacas[pareja_a]
-        vacas_b += match.state.vacas[1 - pareja_a]
-    return ResultadoArena(nombres[0], nombres[1], partidas, victorias_a, vacas_a, vacas_b)
+        if match is not None:
+            vacas_a += match.state.vacas[pareja_a]
+            vacas_b += match.state.vacas[1 - pareja_a]
+    return ResultadoArena(nombres[0], nombres[1], partidas, victorias_a, vacas_a, vacas_b,
+                          faltas["a"], faltas["b"], tuple(motivos["a"]), tuple(motivos["b"]))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

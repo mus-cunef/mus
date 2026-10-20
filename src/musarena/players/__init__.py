@@ -8,10 +8,12 @@ y añadirla a :data:`TIPOS`.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from musarena.player import Player
 from musarena.players.basic_bot import BasicBot
+from musarena.players.externos import crear_externo, es_bot_externo
 from musarena.players.heuristic_bot import ESTILOS, HeuristicBot
 from musarena.players.human_terminal import HumanTerminalPlayer
 from musarena.players.random_bot import RandomBot
@@ -38,9 +40,12 @@ OPCIONES: tuple[str, ...] = (
 def es_tipo_valido(tipo: str) -> bool:
     """Si ``tipo`` es un tipo de jugador.
 
-    Admite un estilo del bot ``reglas`` (``"reglas:agresivo"``) o un modelo del bot
-    ``inteligente`` (``"inteligente:checkpoints/mejor.npz"``).
+    Admite un estilo del bot ``reglas`` (``"reglas:agresivo"``), un modelo del bot
+    ``inteligente`` (``"inteligente:checkpoints/mejor.npz"``) o un archivo de bot externo
+    (``"bots/mi_bot.py"``, ver :mod:`musarena.players.externos`).
     """
+    if es_bot_externo(tipo):
+        return Path(tipo.partition(".py")[0] + ".py").is_file()
     base, _, extra = tipo.partition(":")
     if base not in TIPOS:
         return False
@@ -56,7 +61,9 @@ def crear_jugador(tipo: str, **kwargs: Any) -> Player:
     if not es_tipo_valido(tipo):
         opciones = ", ".join(OPCIONES)
         raise ValueError(f"Tipo de jugador desconocido: {tipo!r}. Opciones: {opciones} "
-                         f"(o inteligente:ruta/al/modelo.npz)")
+                         f"(o inteligente:ruta/al/modelo.npz, o un archivo bots/mi_bot.py)")
+    if es_bot_externo(tipo):
+        return crear_externo(tipo, kwargs.get("seed"), kwargs.get("nombre"))
     base, _, extra = tipo.partition(":")
     if extra:
         kwargs.setdefault("estilo" if base == HeuristicBot.tipo else "modelo", extra)

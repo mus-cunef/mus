@@ -573,10 +573,11 @@ function pintarResultado(r, contenedor) {
   const pct = (x) => `${(100 * x).toFixed(1)} %`;
   const clasif = el("table", { class: "datos" },
     el("thead", {}, el("tr", {}, el("th", {}, "#"), el("th", { class: "izq" }, "Bot"), el("th", {}, "Elo"),
-      el("th", {}, "Victorias"), el("th", {}, "Partidas"), el("th", {}, "% (± 95 %)"))),
+      el("th", {}, "Victorias"), el("th", {}, "Partidas"), el("th", {}, "% (± 95 %)"), el("th", {}, "Faltas"))),
     el("tbody", {}, r.clasificacion.map((f) => el("tr", { class: f.puesto === 1 ? "primero" : null },
       el("td", {}, f.puesto), el("td", { class: "izq" }, f.nombre), el("td", {}, Math.round(f.elo)),
-      el("td", {}, f.victorias), el("td", {}, f.partidas), el("td", {}, `${pct(f.porcentaje)} ± ${pct(f.margen_95)}`)))));
+      el("td", {}, f.victorias), el("td", {}, f.partidas), el("td", {}, `${pct(f.porcentaje)} ± ${pct(f.margen_95)}`),
+      el("td", {}, f.faltas || 0)))));
   const cruces = el("table", { class: "datos cruces" },
     el("thead", {}, el("tr", {}, el("th", {}, ""), orden.map((p) => el("th", {}, nombre[p])))),
     el("tbody", {}, orden.map((a) => el("tr", {}, el("th", { class: "izq" }, nombre[a]), orden.map((b) => {
@@ -590,7 +591,11 @@ function pintarResultado(r, contenedor) {
     el("p", { class: "entradilla" }, `${r.partidas_por_cruce} partidas por cruce · ${r.fecha.replace("T", " ")} · ${r.segundos} s`),
     el("h2", {}, "Clasificación"), el("div", { class: "tabla" }, clasif),
     el("h2", {}, "Cruces"), el("p", {}, "Porcentaje de victorias del bot de la fila contra el de la columna."),
-    el("div", { class: "tabla" }, cruces));
+    el("div", { class: "tabla" }, cruces),
+    (r.incidencias || []).length ? [
+      el("h2", {}, "Faltas"),
+      el("p", {}, "Partidas perdidas porque el bot falló, se colgó o jugó ilegal (el torneo sigue igualmente):"),
+      el("ul", {}, r.incidencias.map((i) => el("li", {}, el("strong", {}, i.nombre), `: ${i.motivo}`)))] : []);
 }
 
 // --- Clasificación y reglas -----------------------------------------------------------

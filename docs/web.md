@@ -20,7 +20,7 @@ Con `--red` se imprime la dirección para el móvil o los otros ordenadores, por
 | **Jugar** | Se elige quién ocupa cada asiento (humano, `inteligente`, `reglas` y sus estilos, `basico`, `random` o los bots de `bots/`), la partida al mejor de 3 o 5 vacas y la velocidad de los bots. Si hay un solo humano, entra directamente; si hay varios, cada uno recibe **su enlace**. |
 | **La mesa** | Tus cartas abajo, el compañero arriba y los rivales a los lados. Un aviso grande de "Te toca", lo que se está jugando (lance y apuesta), un bocadillo con lo último que dijo cada uno, solo los botones de las jugadas legales, el descarte tocando las cartas, el marcador, el historial, el chat y, al final de cada mano, las cartas de los cuatro con los cobros. |
 | **Torneo** | Participantes y partidas por cruce. Se juega en segundo plano con barra de progreso y al final enseña la clasificación (Elo y %) y los cruces. Usa `torneo.jugar_torneo`, el mismo que `mus-torneo`. |
-| **Clasificación** | La última clasificación publicada (`docs/clasificacion.json`). |
+| **Clasificación** | La última clasificación publicada por la Action del torneo (https://mus-cunef.github.io/mus/clasificacion.json; si no se puede leer, la del repositorio). |
 | **Reglas** | `docs/reglas.md`. |
 
 Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-play`.
@@ -77,7 +77,7 @@ reinicio o publicación. Hugging Face Spaces de tipo Docker resultó ser de pago
 ## Publicarla en internet
 
 `MUS_PUBLICO=1` activa límites estrictos (50 mesas, 60 partidas por cruce, 2 procesos por
-torneo). El [`Dockerfile`](../Dockerfile) ya lo hace:
+torneo). El [`Dockerfile`](https://github.com/mus-cunef/mus/blob/main/Dockerfile) ya lo hace:
 
 ```bash
 docker build -t mus-arena .
