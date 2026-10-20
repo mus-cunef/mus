@@ -29,17 +29,26 @@
       <p class="entradilla">Elige quién se sienta en cada asiento. Los humanos juegan desde su navegador, cada uno con su enlace; los bots juegan solos.</p>
       <form id="form-mesa" class="tarjeta">
         <div class="asientos">
-          <label>Jugador 1 <small>pareja A</small><select id="asiento-0"></select></label>
-          <label>Jugador 2 <small>pareja B</small><select id="asiento-1"></select></label>
-          <label>Jugador 3 <small>pareja A</small><select id="asiento-2"></select></label>
-          <label>Jugador 4 <small>pareja B</small><select id="asiento-3"></select></label>
+          <div class="asiento-form">
+            <label>Jugador 1 <small>pareja A</small><select id="asiento-0"></select></label>
+            <input id="nombre-0" class="nombre" maxlength="20" placeholder="Nombre (opcional)" autocomplete="off" aria-label="Nombre del jugador 1">
+          </div>
+          <div class="asiento-form">
+            <label>Jugador 2 <small>pareja B</small><select id="asiento-1"></select></label>
+            <input id="nombre-1" class="nombre" maxlength="20" placeholder="Nombre (opcional)" autocomplete="off" aria-label="Nombre del jugador 2">
+          </div>
+          <div class="asiento-form">
+            <label>Jugador 3 <small>pareja A</small><select id="asiento-2"></select></label>
+            <input id="nombre-2" class="nombre" maxlength="20" placeholder="Nombre (opcional)" autocomplete="off" aria-label="Nombre del jugador 3">
+          </div>
+          <div class="asiento-form">
+            <label>Jugador 4 <small>pareja B</small><select id="asiento-3"></select></label>
+            <input id="nombre-3" class="nombre" maxlength="20" placeholder="Nombre (opcional)" autocomplete="off" aria-label="Nombre del jugador 4">
+          </div>
         </div>
         <div class="fila">
           <label>Partida al mejor de
             <select id="mejor-de"><option value="3">3 vacas</option><option value="5">5 vacas</option></select>
-          </label>
-          <label>Velocidad de los bots
-            <select id="velocidad"><option value="rapida">Rápida</option><option value="normal">Normal</option><option value="lenta">Lenta</option></select>
           </label>
           <button type="submit" class="boton principal">Crear mesa</button>
         </div>

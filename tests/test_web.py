@@ -260,3 +260,31 @@ def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
     cliente = TestClient(crear_app(Config(clasificacion_url=(tmp_path / "no.json").as_uri())))
     assert cliente.get("/api/clasificacion").json()["clasificacion"][0]["puesto"] == 1
     assert Config.desde_entorno().clasificacion_url == ""  # en local, solo el archivo
+
+
+def test_los_humanos_se_ponen_nombre(entorno):
+    cliente, *_ = entorno
+    r = cliente.post("/api/mesas", json={
+        "asientos": ["humano", "random", "humano", "random"],
+        "nombres": ["  Pablo  ", "Bot con nombre", "<b>Sara</b>\x07 la de " + "x" * 50, None]})
+    assert r.status_code == 200, r.text
+    asientos = r.json()["asientos"]
+    nombres = [a["nombre"] for a in asientos]
+    assert nombres[0] == "Pablo"
+    assert nombres[1] == "Jugador 2"  # los bots no llevan nombre
+    assert nombres[2].startswith("<b>Sara</b>") and len(nombres[2]) <= 20  # texto tal cual, corto
+    assert nombres[3] == "Jugador 4"
+    mesa_id, t0 = r.json()["mesa"], asientos[0]["token"]
+    cliente.post(f"/api/mesas/{mesa_id}/chat", headers={"X-Token": t0}, json={"texto": "hola"})
+    v = _ver(cliente, mesa_id, asientos[2]["token"]).json()
+    assert [j["nombre"] for j in v["jugadores"]] == nombres
+    assert v["chat"][0]["quien"] == "Pablo"
+    # El historial usa los nombres en vez de "Jugador 1" / "Jugador 3".
+    textos = " ".join(e["texto"] for e in v["historial"])
+    assert "Jugador 1" not in textos and "Jugador 3" not in textos
+    assert "el Pablo" not in textos and "al Pablo" not in textos  # sin artículo delante
+    sin_nombre = _crear(cliente)  # sin nombres: "Jugador N"
+    assert [a["nombre"] for a in sin_nombre["asientos"]][0] == "Jugador 1"
+    largo = cliente.post("/api/mesas", json={"asientos": ["humano"] + ["random"] * 3,
+                                              "nombres": ["x" * 500]})
+    assert largo.status_code == 400

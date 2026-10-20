@@ -37,6 +37,18 @@ from musarena.web.vista import vista
 
 HUMANO = "humano"
 
+#: Longitud máxima del nombre que se pone un humano.
+MAX_NOMBRE = 20
+
+
+def limpiar_nombre(nombre: object) -> str | None:
+    """Nombre de un humano listo para enseñar: sin caracteres de control ni espacios de más,
+    y como mucho :data:`MAX_NOMBRE` letras. Vacío -> ``None`` (se usa "Jugador N")."""
+    if not isinstance(nombre, str):
+        return None
+    limpio = " ".join("".join(c for c in nombre if c.isprintable()).split())[:MAX_NOMBRE].strip()
+    return limpio or None
+
 #: Velocidad de los bots: multiplica la pausa entre jugadas (``Config.pausa_bots``).
 VELOCIDADES: dict[str, float] = {"rapida": 0.5, "normal": 1.0, "lenta": 2.0}
 
@@ -81,6 +93,7 @@ class Mesa:
     config: Config
     reloj: Callable[[], float] = time.monotonic
     velocidad: str = "rapida"
+    nombres: Sequence[str | None] = ()  # el nombre de cada humano (opcional)
     id: str = field(default_factory=lambda: secrets.token_urlsafe(9))
     seed: int = field(default_factory=lambda: random.SystemRandom().randrange(2**32))
 
@@ -98,12 +111,17 @@ class Mesa:
         for t in self.tipos:
             if t not in permitidos:
                 raise ErrorMesa(f"Tipo de jugador no permitido: {t!r}")
+        nombres = list(self.nombres) + [None] * (4 - len(self.nombres))
+        #: Cómo se ve cada asiento: el nombre que se ha puesto un humano o "Jugador N".
+        self.apodos = [
+            (limpiar_nombre(nombres[a]) if t == HUMANO else None) or nombre_jugador(a)
+            for a, t in enumerate(self.tipos)]
         semillas = random.Random(self.seed)
         self.jugadores: list[Player] = []
         self.tokens: dict[int, str] = {}
         for asiento, tipo in enumerate(self.tipos):
             if tipo == HUMANO:
-                self.jugadores.append(JugadorWeb(nombre_jugador(asiento)))
+                self.jugadores.append(JugadorWeb(self.apodos[asiento]))
                 self.tokens[asiento] = secrets.token_urlsafe(16)
             else:
                 self.jugadores.append(fabrica(tipo)(semillas.randrange(2**32)))
@@ -127,7 +145,7 @@ class Mesa:
 
     def jugadores_publicos(self) -> list[dict]:
         """Qué hay en cada asiento (información pública: quién es humano y qué bot es)."""
-        return [{"asiento": a, "nombre": nombre_jugador(a), "humano": t == HUMANO,
+        return [{"asiento": a, "nombre": self.apodos[a], "humano": t == HUMANO,
                  "tipo": etiqueta(t)} for a, t in enumerate(self.tipos)]
 
     # --- Avanzar la partida ---------------------------------------------------------------
@@ -205,12 +223,13 @@ class GestorMesas:
         self._mesas: dict[str, Mesa] = {}
         self._lock = threading.Lock()
 
-    def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "rapida") -> Mesa:
+    def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "rapida",
+              nombres: Sequence[str | None] = ()) -> Mesa:
         self.limpiar()
         with self._lock:
             if len(self._mesas) >= self.config.max_mesas:
                 raise ErrorMesa("Hay demasiadas mesas abiertas; prueba dentro de un rato", 503)
-            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj, velocidad)
+            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj, velocidad, nombres)
             self._mesas[mesa.id] = mesa
             return mesa
 

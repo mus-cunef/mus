@@ -47,6 +47,7 @@ class NuevaMesa(BaseModel):
     asientos: list[str] = Field(min_length=4, max_length=4)
     mejor_de: int = 3
     velocidad: str = "rapida"
+    nombres: list[str | None] = Field(default_factory=list, max_length=4)
 
 
 class Jugada(BaseModel):
@@ -111,10 +112,13 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     @app.post("/api/mesas")
     def crear_mesa(datos: NuevaMesa) -> dict:
-        mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de, datos.velocidad)
+        if any(n is not None and len(n) > 200 for n in datos.nombres):
+            raise ErrorMesa("Nombre demasiado largo")
+        mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de, datos.velocidad,
+                                     datos.nombres)
         return {"mesa": mesa.id,
-                "asientos": [{"asiento": a, "tipo": etiqueta(t), "token": mesa.tokens.get(a)}
-                             for a, t in enumerate(mesa.tipos)]}
+                "asientos": [{"asiento": a, "tipo": etiqueta(t), "nombre": mesa.apodos[a],
+                              "token": mesa.tokens.get(a)} for a, t in enumerate(mesa.tipos)]}
 
     @app.get("/api/mesas/{mesa_id}")
     def ver_mesa(mesa_id: str, x_token: str = Header(default="")) -> dict:
