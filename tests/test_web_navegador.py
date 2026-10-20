@@ -104,7 +104,8 @@ def _jugar_partida(pagina, mesas, url, asientos=CONTRA_INTELIGENTE, pedir_mus=Fa
         assert pagina.eval_on_selector_all(
             ".asiento-mesa:not(.abajo) .carta:not(.reverso)", "els => els.length") == 0
         assert len(_cartas_en_pantalla(pagina)) <= 4
-        assert not pagina.is_visible("text=null")  # ningún hueco vacío pintado como texto
+        palabras = pagina.evaluate("() => document.body.innerText.split(/\\s+/)")
+        assert "null" not in palabras and "undefined" not in palabras, "hueco vacío pintado"
         boton = pagina.query_selector("#acciones button:not([disabled])")
         if pedir_mus:
             mus = pagina.query_selector("#acciones button:has-text('Mus')")
@@ -132,8 +133,10 @@ def _jugar_partida(pagina, mesas, url, asientos=CONTRA_INTELIGENTE, pedir_mus=Fa
 def test_partida_completa_en_el_navegador(servidor, pagina):
     url, mesas, carpeta = servidor
     mesa, clics = _jugar_partida(pagina, mesas, url)
-    assert mesa.match.terminada and clics > 10
-    assert pagina.errores == []
+    assert mesa.match.terminada, "la partida no ha terminado"
+    # Pocos clics bastan si se acepta un órdago pronto: lo importante es que llegue al final.
+    assert clics >= 1, "el humano no ha jugado"
+    assert pagina.errores == [], pagina.errores
     assert list(carpeta.glob("*.json"))  # la partida queda grabada
 
 
@@ -153,7 +156,7 @@ def test_descartes_con_clics(servidor, pagina):
     propios = [datos for asiento, datos in mesa.grabador.partida.acciones
                if asiento == 0 and datos["tipo"] == "Descarte"]
     assert propios, "el humano no llegó a descartarse"
-    assert pagina.errores == []
+    assert pagina.errores == [], pagina.errores
 
 
 def test_dos_humanos_reciben_sus_enlaces(servidor, pagina):
@@ -168,7 +171,7 @@ def test_dos_humanos_reciben_sus_enlaces(servidor, pagina):
     assert len(enlaces) == 2 and enlaces[0] != enlaces[1] and all("#/mesa/" in e for e in enlaces)
     pagina.click("#lista-enlaces a >> nth=1")
     pagina.wait_for_selector("text=Tú (Jugador 3)")
-    assert pagina.errores == []
+    assert pagina.errores == [], pagina.errores
 
 
 def test_un_enlace_falso_no_entra(servidor, pagina):
@@ -194,4 +197,4 @@ def test_torneo_clasificacion_y_reglas(servidor, pagina):
     pagina.wait_for_selector("#clasificacion table.datos")
     pagina.goto(url + "/#/reglas")
     pagina.wait_for_selector("#reglas h1")
-    assert pagina.errores == []
+    assert pagina.errores == [], pagina.errores
