@@ -52,6 +52,7 @@ main { padding-inline: 16px; padding-block: 0 3rem; }
 label { display: flex; flex-direction: column; gap: .25rem; font-weight: 700; font-size: .95rem; }
 select, input { font: inherit; padding: .45rem .55rem; border-radius: 6px; border: 1px solid var(--linea);
   background: var(--papel); color: var(--tinta); min-width: 0; }
+.asiento-form { display: grid; gap: .35rem; align-content: start; }
 .asientos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem 1rem; margin-bottom: 1rem; }
 @media (max-width: 520px) { .asientos { grid-template-columns: minmax(0, 1fr); } }
 .boton { font: inherit; font-weight: 700; padding: .5rem 1rem; border-radius: 6px; border: 1px solid var(--tinta);
@@ -95,7 +96,7 @@ select, input { font: inherit; padding: .45rem .55rem; border-radius: 6px; borde
 @media (prefers-reduced-motion: reduce) { .aviso-turno { animation: none; } }
 .espera { margin: 0; opacity: .9; }
 .lance { margin: 0; }
-.declaracion { opacity: .85; }
+.declaracion { color: #e9e4d4; font-weight: 500; }
 .asiento-mesa.companero .etiqueta-jugador > span:first-child { color: #bfe0ff; }
 .asiento-mesa.rival .etiqueta-jugador > span:first-child { color: #ffd0d0; }
 .cobros { list-style: none; padding: 0; display: grid; gap: .25rem; }
@@ -109,12 +110,11 @@ select, input { font: inherit; padding: .45rem .55rem; border-radius: 6px; borde
 .carta .num { font-family: var(--display); font-weight: 800; font-size: 1.05rem; line-height: 1; }
 .carta .num.abajo { justify-self: end; transform: rotate(180deg); }
 .carta svg { width: 34px; height: 34px; justify-self: center; align-self: center; }
-.carta .nombre-figura { position: absolute; bottom: 1.15rem; left: 0; right: 0; text-align: center; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; color: #6b5d3f; }
 .carta.oros { color: var(--oros); } .carta.copas { color: var(--copas); }
 .carta.espadas { color: #24508f; } .carta.bastos { color: #2f6b45; }
 .carta.reverso { background: repeating-linear-gradient(45deg, var(--reverso) 0 6px, #8f2c33 6px 12px); border-color: #4a1418; }
 .carta.pequena { width: 40px; height: 60px; padding: .1rem .2rem; }
-.carta.pequena .num { font-size: .8rem; } .carta.pequena svg { width: 22px; height: 22px; } .carta.pequena .nombre-figura { display: none; }
+.carta.pequena .num { font-size: .8rem; } .carta.pequena svg { width: 22px; height: 22px; }
 .carta.seleccionable { cursor: pointer; transition: transform .12s; }
 .carta.seleccionable:hover { transform: translateY(-4px); }
 .carta.elegida { transform: translateY(-12px); outline: 3px solid var(--resalte); }

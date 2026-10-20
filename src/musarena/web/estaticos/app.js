@@ -52,11 +52,8 @@ function explicarError(cuerpo, codigo) {
   return codigo >= 500 ? "Error del servidor; inténtalo otra vez" : `Error ${codigo}`;
 }
 
-const NOMBRE_JUGADOR = (a) => `Jugador ${a + 1}`;
 const PAREJA = (p) => (p === 0 ? "A" : "B");
 const LANCES = { grande: "Grande", chica: "Chica", pares: "Pares", juego: "Juego", punto: "Punto" };
-// A 8 reyes, el 3 vale como un rey y el 2 como un as: se avisa en la propia carta.
-const FIGURAS = { 10: "Sota", 11: "Caballo", 12: "Rey", 3: "vale rey", 2: "vale as" };
 
 // --- Cartas ---------------------------------------------------------------------------
 
@@ -91,7 +88,6 @@ function carta(c, opciones = {}) {
       "aria-pressed": opciones.seleccionable ? String(!!opciones.elegida) : null,
       type: opciones.seleccionable ? "button" : null, onclick: opciones.onclick },
     el("span", { class: "num" }, c.numero), svgPalo(c.palo),
-    FIGURAS[c.numero] ? el("span", { class: "nombre-figura" }, FIGURAS[c.numero]) : null,
     el("span", { class: "num abajo" }, c.numero));
   return nodo;
 }
@@ -144,7 +140,14 @@ const Inicio = {
       select.replaceChildren(...this.opciones.tipos.map((t) =>
         el("option", { value: t.valor, title: t.descripcion }, t.valor === "humano" ? "Humano" : `Bot: ${t.nombre}`)));
       select.value = porDefecto[a];
+      select.addEventListener("change", () => this.mostrarNombres());
     }
+    this.mostrarNombres();
+  },
+
+  mostrarNombres() {
+    // La casilla del nombre solo aparece en los asientos de humanos.
+    for (let a = 0; a < 4; a++) $(`#nombre-${a}`).hidden = $(`#asiento-${a}`).value !== "humano";
   },
 
   error(texto) {
@@ -165,7 +168,8 @@ const Inicio = {
     boton.disabled = true;
     try {
       const datos = await api("POST", "/api/mesas", {
-        asientos, mejor_de: Number($("#mejor-de").value), velocidad: $("#velocidad").value });
+        asientos, mejor_de: Number($("#mejor-de").value),
+        nombres: [0, 1, 2, 3].map((a) => (asientos[a] === "humano" && $(`#nombre-${a}`).value.trim()) || null) });
       const humanos = datos.asientos.filter((a) => a.token);
       const enlace = (a) => `${location.origin}${location.pathname}#/mesa/${datos.mesa}/${a.token}`;
       if (humanos.length === 1) {
@@ -176,7 +180,7 @@ const Inicio = {
         const url = enlace(a);
         const codigo = el("code", {}, url);
         return el("li", {},
-          el("strong", {}, `${NOMBRE_JUGADOR(a.asiento)} (pareja ${PAREJA(a.asiento % 2)})`), codigo,
+          el("strong", {}, `${a.nombre} (pareja ${PAREJA(a.asiento % 2)})`), codigo,
           el("div", { class: "fila" },
             el("a", { class: "boton principal", href: url.slice(url.indexOf("#")) }, "Entrar en este asiento"),
             el("button", { class: "boton", type: "button", onclick: (e) => copiar(url, e.currentTarget, codigo) }, "Copiar enlace")));
@@ -280,7 +284,7 @@ const Mesa = {
 
   quien(asiento) {
     const r = this.rel(asiento);
-    const base = NOMBRE_JUGADOR(asiento);
+    const base = this.v.jugadores[asiento].nombre;
     return r === 0 ? `Tú (${base})` : r === 2 ? `Compañero (${base})` : `Rival (${base})`;
   },
 
@@ -403,7 +407,7 @@ const Mesa = {
     const lista = $("#historial");
     lista.replaceChildren(...this.v.historial.map((e) => e.asiento === null
       ? el("li", { class: "sistema" }, e.texto)
-      : el("li", {}, el("b", {}, `${NOMBRE_JUGADOR(e.asiento)}: `), e.texto)));
+      : el("li", {}, el("b", {}, `${e.quien}: `), e.texto)));
     lista.scrollTop = lista.scrollHeight;
   },
 

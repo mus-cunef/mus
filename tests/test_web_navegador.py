@@ -87,8 +87,12 @@ def _jugar_partida(pagina, mesas, url, asientos=CONTRA_INTELIGENTE, pedir_mus=Fa
     pagina.wait_for_selector("#asiento-0 option", state="attached")
     for a, tipo in enumerate(asientos):
         pagina.select_option(f"#asiento-{a}", tipo)
+        # La casilla del nombre solo aparece en los asientos de humanos.
+        assert pagina.is_visible(f"#nombre-{a}") == (tipo == "humano")
+    pagina.fill("#nombre-0", "Pablo")
     pagina.click("#form-mesa button[type=submit]")
     pagina.wait_for_url("**/#/mesa/**")
+    pagina.wait_for_selector("text=Tú (Pablo)")
     mesa_id = pagina.url.split("#/mesa/")[1].split("/")[0]
     mesa = mesas.obtener(mesa_id)
     clics = 0
@@ -104,6 +108,7 @@ def _jugar_partida(pagina, mesas, url, asientos=CONTRA_INTELIGENTE, pedir_mus=Fa
         assert pagina.eval_on_selector_all(
             ".asiento-mesa:not(.abajo) .carta:not(.reverso)", "els => els.length") == 0
         assert len(_cartas_en_pantalla(pagina)) <= 4
+        assert not pagina.query_selector(".nombre-figura")  # las cartas no llevan etiquetas
         palabras = pagina.evaluate("() => document.body.innerText.split(/\\s+/)")
         assert "null" not in palabras and "undefined" not in palabras, "hueco vacío pintado"
         boton = pagina.query_selector("#acciones button:not([disabled])")
