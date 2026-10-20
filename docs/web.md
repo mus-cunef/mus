@@ -17,7 +17,7 @@ Con `--red` se imprime la dirección para el móvil o los otros ordenadores, por
 
 | Apartado | Qué se hace |
 | --- | --- |
-| **Jugar** | Se elige quién ocupa cada asiento (humano, `inteligente`, `reglas` y sus estilos, `basico`, `random` o los bots de `bots/`), la partida al mejor de 3 o 5 vacas y la velocidad de los bots. Si hay un solo humano, entra directamente; si hay varios, cada uno recibe **su enlace**. |
+| **Jugar** | Se elige quién ocupa cada asiento (humano, `inteligente`, `reglas` y sus estilos, `basico`, `random` o los bots de `bots/`), el **nombre de cada humano** (opcional; si no, "Jugador N") y la partida al mejor de 3 o 5 vacas. Si hay un solo humano, entra directamente; si hay varios, cada uno recibe **su enlace**. |
 | **La mesa** | Tus cartas abajo, el compañero arriba y los rivales a los lados. Un aviso grande de "Te toca", lo que se está jugando (lance y apuesta), un bocadillo con lo último que dijo cada uno, solo los botones de las jugadas legales, el descarte tocando las cartas, el marcador, el historial, el chat y, al final de cada mano, las cartas de los cuatro con los cobros. |
 | **Torneo** | Participantes y partidas por cruce. Se juega en segundo plano con barra de progreso y al final enseña la clasificación (Elo y %) y los cruces. Usa `torneo.jugar_torneo`, el mismo que `mus-torneo`. |
 | **Clasificación** | La última clasificación publicada por la Action del torneo (https://mus-cunef.github.io/mus/clasificacion.json; si no se puede leer, la del repositorio). |
@@ -30,7 +30,7 @@ Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-
 - **Servidor:** FastAPI (`musarena/web/`). Reutiliza el motor, el registro de bots, el torneo y la
   grabación. La página es HTML, CSS y JavaScript sin compilar (`musarena/web/estaticos/`).
 - **Una mesa** guarda una `Match`. Cuando le toca a un bot, la mesa juega por él con una pequeña
-  pausa para que se vea (rápida: 0,3 s; normal: 0,6 s; lenta: 1,2 s). Cuando le toca a un humano,
+  pausa de 0,3 s para que se vea lo que hace. Cuando le toca a un humano,
   espera a que su navegador mande la jugada.
 - **El navegador pregunta** cada 0,25 s mientras juegan los bots y cada 2 s cuando le toca a la
   persona (no hace falta más). Al jugar, la respuesta ya trae la mesa actualizada.
@@ -72,27 +72,17 @@ repositorio: **cada fusión en `main` la vuelve a publicar sola**. Configuració
 
 Plan gratuito: si nadie entra en 15 minutos se duerme y la siguiente visita tarda unos 30-60 s
 (conviene abrirla un minuto antes de una demo). Las partidas grabadas allí se pierden en cada
-reinicio o publicación. Hugging Face Spaces de tipo Docker resultó ser de pago.
+reinicio o publicación.
 
-## Publicarla en internet
+## Modo internet
 
-`MUS_PUBLICO=1` activa límites estrictos (50 mesas, 60 partidas por cruce, 2 procesos por
-torneo). El [`Dockerfile`](https://github.com/mus-cunef/mus/blob/main/Dockerfile) ya lo hace:
-
-```bash
-docker build -t mus-arena .
-docker run -p 7860:7860 mus-arena        # http://localhost:7860
-```
-
-Sirve tal cual para servicios gratuitos que ejecutan contenedores. En **Hugging Face Spaces**: se
-crea un Space de tipo *Docker* y se suben los archivos del repositorio (el puerto 7860 es el que
-espera). Las mesas viven en memoria, así que se usa **un solo proceso**. Las partidas grabadas en
-un servicio gratuito se pierden al reiniciarlo: si se quieren conservar, hay que descargarlas o
-guardarlas en un almacenamiento aparte.
+`MUS_PUBLICO=1` activa límites estrictos para que un visitante no acapare el servidor: 50 mesas
+abiertas como máximo, 60 partidas por cruce en los torneos y 2 procesos por torneo. Las mesas
+viven en memoria, así que la web se arranca con **un solo proceso** (`mus-web` ya lo hace).
 
 Variables de entorno: `MUS_PUBLICO`, `MUS_MAX_MESAS`, `MUS_MINUTOS_INACTIVA`,
 `MUS_MAX_PARTIDAS_TORNEO`, `MUS_PROCESOS_TORNEO`, `MUS_PARTIDAS`, `MUS_BOTS`,
-`MUS_CLASIFICACION`, `MUS_REGLAS` (ver `musarena/web/config.py`).
+`MUS_CLASIFICACION`, `MUS_CLASIFICACION_URL` y `MUS_REGLAS` (ver `musarena/web/config.py`).
 
 ## API
 

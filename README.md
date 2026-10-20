@@ -93,7 +93,7 @@ mus-web --red      # también desde el móvil u otros ordenadores de la misma wi
 ```
 
 Humanos y bots en cualquier asiento, cada humano con su enlace secreto, y apartados de torneo,
-clasificación y reglas. Está preparada para publicarse en internet con el `Dockerfile`. Todo
+clasificación y reglas. Publicada en Render, se actualiza sola al fusionar en `main`. Todo
 explicado en [`docs/web.md`](docs/web.md).
 
 ## Torneo
