@@ -54,6 +54,26 @@ Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-
 - **Cabeceras:** `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` y
   `X-Frame-Options: DENY`.
 
+## Publicada en Render
+
+La web está en **https://mus-81o1.onrender.com** (servicio gratuito de [Render](https://render.com)), conectada al
+repositorio: **cada fusión en `main` la vuelve a publicar sola**. Configuración del servicio
+(*Web Service*, creado a mano en el panel de Render):
+
+| Campo | Valor |
+| --- | --- |
+| Language | Python 3 |
+| Branch | `main` |
+| Region | Frankfurt (EU Central) |
+| Build Command | `pip install ".[web]"` |
+| Start Command | `mus-web --red --no-abrir --puerto $PORT` |
+| Instance Type | Free |
+| Variables de entorno | `MUS_PUBLICO=1`, `PYTHON_VERSION=3.12.7` |
+
+Plan gratuito: si nadie entra en 15 minutos se duerme y la siguiente visita tarda unos 30-60 s
+(conviene abrirla un minuto antes de una demo). Las partidas grabadas allí se pierden en cada
+reinicio o publicación. Hugging Face Spaces de tipo Docker resultó ser de pago.
+
 ## Publicarla en internet
 
 `MUS_PUBLICO=1` activa límites estrictos (50 mesas, 60 partidas por cruce, 2 procesos por
