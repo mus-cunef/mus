@@ -1,0 +1,59 @@
+name: torneo y documentación
+
+# Juega el torneo de todos los bots (los del registro y los de bots/), mete la clasificación en
+# la documentación y la publica en GitHub Pages: https://mus-cunef.github.io/mus/
+# Se lanza al fusionar en main, cada lunes, o a mano desde la pestaña Actions.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      partidas:
+        description: Partidas por cruce
+        default: "100"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar
+        run: pip install -e ".[docs]"
+      - name: Jugar el torneo
+        run: >
+          mus-torneo -n ${{ github.event.inputs.partidas || '100' }} -p 0
+          --markdown docs/clasificacion.md --json docs/clasificacion.json
+      - name: Clasificación en el resumen de la ejecución
+        run: cat docs/clasificacion.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Construir la documentación
+        run: mkdocs build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publicar:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - id: despliegue
+        uses: actions/deploy-pages@v4

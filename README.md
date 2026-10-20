@@ -6,7 +6,7 @@ Proyecto de la asignatura **Inteligencia Artificial** (3º MAT, CUNEF Universida
 El **mus clásico de 4 jugadores por parejas**: motor en Python, interfaz web para jugar entre humanos
 o contra bots, y una arena donde compiten inteligencias artificiales.
 
-**Jugar:** [mus-81o1.onrender.com](https://mus-81o1.onrender.com) · **Documentación:** próximamente · **Clasificación:** [docs/clasificacion.md](docs/clasificacion.md)
+**Jugar:** [mus-81o1.onrender.com](https://mus-81o1.onrender.com) · **Documentación:** [mus-cunef.github.io/mus](https://mus-cunef.github.io/mus/) · **Clasificación:** [actualizada automáticamente](https://mus-cunef.github.io/mus/clasificacion/)
 
 ## ¿Qué es esto?
 
@@ -108,9 +108,13 @@ mus-torneo -n 400 --markdown clasificacion.md --json clasificacion.json
 mus-torneo --participantes reglas,inteligente,bots/mi_bot.py
 ```
 
-Una GitHub Action ([`torneo.yml`](.github/workflows/torneo.yml)) lo juega cada lunes, al
-fusionar cambios en los bots y cuando se lanza a mano desde la pestaña *Actions*, y publica la
-clasificación. La última está en [`docs/clasificacion.md`](docs/clasificacion.md).
+Una GitHub Action ([`documentacion.yml`](.github/workflows/documentacion.yml)) juega el torneo
+al fusionar en `main`, cada lunes y cuando se lanza a mano desde *Actions*, y publica la
+clasificación en la [documentación](https://mus-cunef.github.io/mus/clasificacion/). Un bot que falla, se cuelga o juega
+ilegal **pierde esa partida**, pero el torneo sigue y la falta queda anotada.
+
+**Documentación online:** [mus-cunef.github.io/mus/](https://mus-cunef.github.io/mus/), con el tutorial para programar
+un bot de principio a fin y la referencia del API.
 
 **Participar con un bot propio:** copia [`bots/prudente.py`](bots/prudente.py), programa
 `choose_action` y entrará solo en el torneo. Las instrucciones están en

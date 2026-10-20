@@ -247,3 +247,16 @@ def test_solo_un_torneo_a_la_vez():
         time.sleep(0.02)
     assert primero.estado == "terminado"
     assert torneos.lanzar(["random", "basico"], 4).estado in ("jugando", "terminado")
+
+
+def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
+    publicada = tmp_path / "publicada.json"
+    publicada.write_text(json.dumps({"clasificacion": [{"puesto": 1, "nombre": "x"}],
+                                     "cruces": []}), encoding="utf-8")
+    config = Config(clasificacion_url=publicada.as_uri())
+    cliente = TestClient(crear_app(config))
+    assert cliente.get("/api/clasificacion").json()["clasificacion"][0]["nombre"] == "x"
+    # Si la publicada no se puede leer, se usa la del repositorio.
+    cliente = TestClient(crear_app(Config(clasificacion_url=(tmp_path / "no.json").as_uri())))
+    assert cliente.get("/api/clasificacion").json()["clasificacion"][0]["puesto"] == 1
+    assert Config.desde_entorno().clasificacion_url == ""  # en local, solo el archivo
