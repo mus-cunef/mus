@@ -106,6 +106,32 @@ Cómo está hecho (`musarena/web/`):
   una base de datos **PostgreSQL** externa (variable `MUS_BD`), porque el disco de Render se
   borra en cada reinicio.
 
+## Partidas guardadas para entrenar al bot
+
+El bot **no aprende solo** mientras se juega: el modelo publicado está congelado y solo se
+cambia si uno nuevo gana en la arena (ver `docs/inteligente.md`). Pero las partidas con humanos
+se guardan para poder entrenarlo más adelante con ellas (`musarena/web/archivo.py`):
+
+- **Mesas normales:** al acabar cada mano, al terminar la partida y al cerrar la mesa, en la
+  tabla `partidas_web` de la base de datos. Si el servidor se duerme a mitad de partida, queda
+  guardada hasta la última mano.
+- **Torneos privados:** ya se guardan jugada a jugada en `partidos`.
+- Solo se guarda la semilla, qué hay en cada asiento (`humano`, `inteligente`…) y las jugadas:
+  **ni nombres ni cuentas**. Si la base de datos falla, la partida sigue igual (solo se apunta
+  el error).
+
+Para usarlas, se exportan a archivos como los de `mus-play` (en PowerShell, con la cadena de
+Neon, que es secreta y no se escribe en ningún archivo del repositorio):
+
+```powershell
+$env:MUS_BD = "postgresql://..."
+python -m musarena.web.archivo partidas/web
+```
+
+Luego, `musarena.ia.entrenamiento.datos.de_partidas(...)` las convierte en ejemplos (las
+decisiones de los humanos). Para que reentrenar merezca la pena hacen falta varios cientos de
+partidas.
+
 ## Publicada en Render
 
 La primera versión estaba en `mus-81o1.onrender.com`; la actual (con la base de datos de Neon)

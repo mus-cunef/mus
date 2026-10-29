@@ -300,6 +300,16 @@ def test_cuatro_parejas_semis_y_final_jugadas_de_verdad(app, reloj):
     assert campeon["jugados"] == 2 and campeon["ganados"] == 2
     assert campeon["tantos"][0] > 0 and campeon["manos"] > 0
     assert sum(x["jugados"] for x in e.values()) == 8
+    # Los dos partidos jugados se pueden exportar para entrenar (los w.o. no tienen jugadas).
+    from musarena.grabacion import estado_final
+    from musarena.web.archivo import partidas_guardadas
+
+    del_torneo = [p for n, p in partidas_guardadas(app.state.archivo.motor)
+                  if n.startswith("torneo_")]
+    assert len(del_torneo) == 2
+    for partida in del_torneo:
+        assert partida.jugadores == ["humano"] * 4 and partida.terminada
+        assert estado_final(partida).ganador == partida.ganador
 
 
 def test_solo_juegan_los_del_partido_y_cada_uno_en_su_asiento(app, reloj):

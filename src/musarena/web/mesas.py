@@ -19,6 +19,7 @@ Las mesas de los torneos privados se guardan en la base de datos jugada a jugada
 
 from __future__ import annotations
 
+import logging
 import random
 import secrets
 import threading
@@ -40,6 +41,8 @@ from musarena.web.config import Config
 from musarena.web.vista import vista
 
 HUMANO = "humano"
+
+log = logging.getLogger(__name__)
 
 #: Longitud máxima del nombre que se pone un humano.
 MAX_NOMBRE = 20
@@ -105,6 +108,9 @@ class Mesa:
     tokens_iniciales: dict[int, str] = field(default_factory=dict)
     #: Se llama tras cada jugada (los torneos privados la guardan en la base de datos).
     al_cambiar: Callable[[Mesa], None] | None = None
+    #: Se llama al acabar cada mano, al terminar la partida y al cerrar la mesa (el archivo de
+    #: partidas de la web la guarda en la base de datos para entrenar al bot).
+    al_grabar: Callable[[Mesa], None] | None = None
 
     def __post_init__(self) -> None:
         if len(self.tipos) != 4:
@@ -142,6 +148,7 @@ class Mesa:
                            al_decidir=self.grabador)
         self.version = 0
         self.grabada = False
+        self._manos_archivadas = 0
         self.lock = threading.Lock()
         self.ultima_actividad = self.reloj()
         self.proxima_jugada_bot = self.reloj() + self.pausa
@@ -174,6 +181,8 @@ class Mesa:
         self.proxima_jugada_bot = self.reloj() + self.pausa
         if self.match.terminada and not self.grabada:
             self._grabar()
+        elif len(self.match.state.manos_jugadas) > self._manos_archivadas:
+            self._archivar()  # al acabar cada mano
         if self.al_cambiar is not None:
             self.al_cambiar(self)
 
@@ -181,6 +190,16 @@ class Mesa:
         if self.config.carpeta_partidas and self.grabador.partida.acciones:
             self.grabador.guardar(self.match, self.config.carpeta_partidas)
         self.grabada = True
+        self._archivar()
+
+    def _archivar(self) -> None:
+        self._manos_archivadas = len(self.match.state.manos_jugadas)
+        if self.al_grabar is None:
+            return
+        try:
+            self.al_grabar(self)
+        except Exception:  # que un fallo de la base de datos no rompa la partida
+            log.exception("No se ha podido guardar la partida de la mesa %s", self.id)
 
     def restaurar(self, acciones: Sequence[tuple[int, dict]]) -> None:
         """Repite unas jugadas ya hechas (al reconstruir la mesa tras un reinicio)."""
@@ -258,6 +277,8 @@ class GestorMesas:
         self._lock = threading.Lock()
         #: Reconstruye una mesa que ya no está en memoria (las de los torneos privados).
         self.restaurador: Callable[[str], Mesa | None] | None = None
+        #: Guarda las partidas de las mesas normales (ver :mod:`musarena.web.archivo`).
+        self.al_grabar: Callable[[Mesa], None] | None = None
 
     def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "normal",
               nombres: Sequence[str | None] = ()) -> Mesa:
@@ -265,7 +286,8 @@ class GestorMesas:
         with self._lock:
             if len(self._mesas) >= self.config.max_mesas:
                 raise ErrorMesa("Hay demasiadas mesas abiertas; prueba dentro de un rato", 503)
-            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj, velocidad, nombres)
+            mesa = Mesa(list(tipos), mejor_de, self.config, self.reloj, velocidad, nombres,
+                        al_grabar=self.al_grabar)
             self._mesas[mesa.id] = mesa
             return mesa
 

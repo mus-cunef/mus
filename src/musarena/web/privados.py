@@ -289,7 +289,8 @@ class Privados:
             if listos >= set(asientos):  # el último en darle: empieza la partida
                 valores.update(estado="jugando", mesa=secrets.token_urlsafe(9),
                                tokens={a: secrets.token_urlsafe(16) for a in range(4)},
-                               acciones=[], semilla=random.SystemRandom().randrange(2**32),
+                               # < 2**31: la columna es un entero de 32 bits en PostgreSQL
+                               acciones=[], semilla=random.SystemRandom().randrange(2**31),
                                actualizado=self.reloj())
             c.execute(update(partidos).where(partidos.c.id == p.id).values(**valores))
 

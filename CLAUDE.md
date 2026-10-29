@@ -183,6 +183,12 @@ Principios:
   la mesa normal con las cuatro cuentas; **cada jugada se guarda en la base de datos**
   y la mesa se reconstruye tras un reinicio. En Render hace falta una base PostgreSQL externa
   (`MUS_BD`, Neon gratis), porque su disco se borra al reiniciar.
+- **Partidas de la web para entrenar**: el bot no aprende en directo (el modelo está
+  congelado). Las partidas con humanos de la web se guardan en la base de datos (tabla
+  `partidas_web`, al acabar cada mano; las de torneos, en `partidos`) sin nombres, y se exportan
+  con `python -m musarena.web.archivo partidas/web` (con `MUS_BD`) para reentrenar por tandas
+  cuando haya varios cientos. Las semillas de los partidos de torneo son < 2**31 (la columna es
+  un entero de 32 bits en PostgreSQL).
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
