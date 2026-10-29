@@ -6,7 +6,7 @@ clasificación. Proyecto de la asignatura Inteligencia Artificial (CUNEF, 2026/2
 
 <div class="grid cards" markdown>
 
-- **Jugar ahora:** [mus-81o1.onrender.com](https://mus-81o1.onrender.com), sin instalar nada.
+- **Jugar ahora:** [millosolo-mus.onrender.com](https://millosolo-mus.onrender.com), sin instalar nada.
   Si nadie la ha usado en un rato, tarda unos segundos en despertar.
 - **Programar un bot:** [tutorial de principio a fin](tutorial-bot.md).
 - **Clasificación:** [torneo de todos los bots](clasificacion.md), actualizado automáticamente.

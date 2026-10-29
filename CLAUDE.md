@@ -34,7 +34,7 @@ siempre el porqué de las decisiones.
 | — | Juego por turnos **de 2 jugadores, validado por el profesor** | condición | Confirmado: el profesor validó el mus (2 parejas) |
 | 1.1 | Lógica en librería Python instalable; partida completa desde código | 1.5 | Hecho |
 | 1.2 | Interfaz web: una persona juega una partida completa contra un bot | 1.0 | Hecho (`mus-web`) |
-| 1.3 | Web publicada en URL pública, sin instalar nada | 0.5 | Hecho: https://mus-81o1.onrender.com |
+| 1.3 | Web publicada en URL pública, sin instalar nada | 0.5 | Hecho: https://millosolo-mus.onrender.com |
 | 2.1 | API público en Python: un bot se escribe sin tocar el juego | 1.0 | Hecho (`Player`, `bots/`) |
 | 2.2 | Tests automáticos que comprueban los bots nuevos antes de incluirlos | 0.5 | Hecho: `tests/test_bots_nuevos.py` examina cada bot de `bots/` en la CI |
 | 2.3 | Documentación **publicada online** con referencia del API y tutorial de principio a fin | 0.5 | Hecho: https://mus-cunef.github.io/mus/ (MkDocs + GitHub Pages; API generada de los docstrings; `docs/tutorial-bot.md`) |
@@ -218,11 +218,12 @@ Principios:
    `mus-arena inteligente:nuevo.npz inteligente -n 2000 -p 0 --seed 77`.
 2. **Lo que falta del proyecto**: ver la tabla de "Requisitos oficiales". Quedan **3.2** (un bot
    para el juego de otro equipo, por PR) y **3.3** (bots externos recibidos por PR), que
-   dependen de otros equipos. La web está en https://mus-81o1.onrender.com y la documentación
+   dependen de otros equipos. La web está en https://millosolo-mus.onrender.com y la documentación
    en https://mus-cunef.github.io/mus/.
-3. **Torneos privados en internet:** para que duren las cuentas y los torneos en Render, crear
-   una base PostgreSQL en Neon y poner su cadena en la variable `MUS_BD` del servicio
-   (pasos en `docs/web.md`). Sin ella funcionan, pero se pierden en cada reinicio.
+3. **Torneos privados en internet:** hecho. La web publicada es el servicio de Render
+   `millosolo-mus` (https://millosolo-mus.onrender.com), con la base PostgreSQL de Neon en
+   `MUS_BD` y el organizador en `MUS_ORGANIZADORES` (lo configuró Pablo; la cadena de Neon es
+   un secreto y solo está en Render). El servicio antiguo `mus-81o1` sobra.
 4. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 5. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con

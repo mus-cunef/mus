@@ -6,7 +6,7 @@ Proyecto de la asignatura **Inteligencia Artificial** (3º MAT, CUNEF Universida
 El **mus clásico de 4 jugadores por parejas**: motor en Python, interfaz web para jugar entre humanos
 o contra bots, y una arena donde compiten inteligencias artificiales.
 
-**Jugar:** [mus-81o1.onrender.com](https://mus-81o1.onrender.com) · **Documentación:** [mus-cunef.github.io/mus](https://mus-cunef.github.io/mus/) · **Clasificación:** [actualizada automáticamente](https://mus-cunef.github.io/mus/clasificacion/)
+**Jugar:** [millosolo-mus.onrender.com](https://millosolo-mus.onrender.com) · **Documentación:** [mus-cunef.github.io/mus](https://mus-cunef.github.io/mus/) · **Clasificación:** [actualizada automáticamente](https://mus-cunef.github.io/mus/clasificacion/)
 
 ## ¿Qué es esto?
 
@@ -84,7 +84,7 @@ aprenderá a jugar como las personas. Para no guardarla: `mus-play --no-grabar`.
 
 ## Jugar en el navegador
 
-La web está publicada en **[mus-81o1.onrender.com](https://mus-81o1.onrender.com)**, sin instalar nada. Si nadie la ha usado en un rato, tarda unos 30-60 segundos en despertar. También se puede arrancar en local:
+La web está publicada en **[millosolo-mus.onrender.com](https://millosolo-mus.onrender.com)**, sin instalar nada. Si nadie la ha usado en un rato, tarda unos 30-60 segundos en despertar. También se puede arrancar en local:
 
 ```bash
 pip install -e ".[web]"
