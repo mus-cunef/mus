@@ -97,7 +97,10 @@ src/musarena/
   web/          la web (`mus-web`, extra [web]; ver docs/web.md): config.py (límites, modo
                 internet con MUS_PUBLICO=1), vista.py (lo que ve cada asiento: solo su
                 Observation), mesas.py (mesas con humanos y bots), torneos.py (torneos en
-                segundo plano), app.py (FastAPI), estaticos/ (HTML, CSS y JS sin compilar)
+                segundo plano), app.py (FastAPI), estaticos/ (HTML, CSS y JS sin compilar);
+                torneos privados entre personas: bd.py (SQLAlchemy: SQLite o PostgreSQL),
+                cuentas.py (registro, scrypt, sesiones), formato.py (grupos, cuadro, pases,
+                liga; lógica pura) y privados.py (inscripción, sorteo, avance, estadísticas)
 bots/           bots externos: cada .py entra solo en el torneo (prudente.py es el ejemplo);
                 tests/test_bots_nuevos.py los examina en la CI
 docs/ + mkdocs.yml  documentación online (https://mus-cunef.github.io/mus/); herramientas/griffe_rest.py convierte
@@ -172,6 +175,13 @@ Principios:
   sin fallos**. Los bots juegan a **velocidad media** (0,6 s por jugada) para que se entienda
   lo que pasa. Cada cambio en la web se prueba también en el navegador
   (`tests/test_web_navegador.py`, con Playwright y el Chrome instalado) y se revisa con capturas.
+- **Torneos privados (web)**: cuentas con contraseña (scrypt) y sesión en cookie `HttpOnly`;
+  el organizador elige el formato (automático: grupos si hay más de 16 parejas; si no, cuadro
+  directo con pases para las mejores cabezas de serie), la fecha límite y comparte un enlace
+  con código. Las parejas se inscriben con la cuenta del compañero, que acepta. Los partidos se
+  juegan en la mesa normal con las cuatro cuentas; **cada jugada se guarda en la base de datos**
+  y la mesa se reconstruye tras un reinicio. En Render hace falta una base PostgreSQL externa
+  (`MUS_BD`, Neon gratis), porque su disco se borra al reiniciar.
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.
 - **Lección del heurístico**: calcular el valor esperado con un modelo de "qué hará el rival"
@@ -209,9 +219,12 @@ Principios:
    para el juego de otro equipo, por PR) y **3.3** (bots externos recibidos por PR), que
    dependen de otros equipos. La web está en https://mus-81o1.onrender.com y la documentación
    en https://mus-cunef.github.io/mus/.
-3. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
+3. **Torneos privados en internet:** para que duren las cuentas y los torneos en Render, crear
+   una base PostgreSQL en Neon y poner su cadena en la variable `MUS_BD` del servicio
+   (pasos en `docs/web.md`). Sin ella funcionan, pero se pierden en cada reinicio.
+4. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
-4. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
+5. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
    `datos.de_partidas`, tabla de descartes humana, medir contra personas), más ciclos de
    cazadores, búsqueda al decidir y una red más grande. Las tareas en segundo plano se cortan
    pasada aproximadamente una hora: entrenar en tramos de 150 iteraciones.

@@ -11,6 +11,10 @@ Cómo avanza una partida:
 
 Seguridad: cada asiento humano tiene un **código secreto** (``token``). Quien no lo tiene no
 puede ver ese asiento ni jugar por él, y la vista de un asiento solo contiene su observación.
+
+Las mesas de los torneos privados se guardan en la base de datos jugada a jugada
+(``al_cambiar``). Si el servidor se reinicia, :class:`GestorMesas` las reconstruye con
+``restaurador``: la misma semilla y las mismas jugadas dan exactamente la misma partida.
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ from dataclasses import dataclass, field
 from musarena.actions import Action
 from musarena.arena import fabrica
 from musarena.engine import legal_actions
-from musarena.grabacion import Grabador
+from musarena.grabacion import Grabador, accion_desde_dict
 from musarena.match import Match
 from musarena.observation import Observation
 from musarena.player import Player
@@ -97,6 +101,10 @@ class Mesa:
     nombres: Sequence[str | None] = ()  # el nombre de cada humano (opcional)
     id: str = field(default_factory=lambda: secrets.token_urlsafe(9))
     seed: int = field(default_factory=lambda: random.SystemRandom().randrange(2**32))
+    #: Códigos de asiento ya decididos (al reconstruir una mesa de torneo).
+    tokens_iniciales: dict[int, str] = field(default_factory=dict)
+    #: Se llama tras cada jugada (los torneos privados la guardan en la base de datos).
+    al_cambiar: Callable[[Mesa], None] | None = None
 
     def __post_init__(self) -> None:
         if len(self.tipos) != 4:
@@ -123,11 +131,13 @@ class Mesa:
         for asiento, tipo in enumerate(self.tipos):
             if tipo == HUMANO:
                 self.jugadores.append(JugadorWeb(self.apodos[asiento]))
-                self.tokens[asiento] = secrets.token_urlsafe(16)
+                self.tokens[asiento] = (self.tokens_iniciales.get(asiento)
+                                        or secrets.token_urlsafe(16))
             else:
                 self.jugadores.append(fabrica(tipo)(semillas.randrange(2**32)))
-        self.grabador = (Grabador(self.seed, self.mejor_de, self.tipos)
-                         if self.config.carpeta_partidas else None)
+        # Siempre se apuntan las jugadas (los torneos las necesitan); el archivo solo se escribe
+        # si hay carpeta de partidas.
+        self.grabador = Grabador(self.seed, self.mejor_de, self.tipos)
         self.match = Match(self.jugadores, mejor_de=self.mejor_de, seed=self.seed,
                            al_decidir=self.grabador)
         self.version = 0
@@ -154,16 +164,39 @@ class Mesa:
     def _le_toca_a_un_bot(self) -> bool:
         return not self.match.terminada and self.tipos[self.match.state.turno] != HUMANO
 
+    @property
+    def acciones(self) -> list[tuple[int, dict]]:
+        """Las jugadas hechas, como ``(asiento, acción)`` (para guardarlas)."""
+        return self.grabador.partida.acciones
+
     def _despues_de_jugar(self) -> None:
         self.version += 1
         self.proxima_jugada_bot = self.reloj() + self.pausa
         if self.match.terminada and not self.grabada:
             self._grabar()
+        if self.al_cambiar is not None:
+            self.al_cambiar(self)
 
     def _grabar(self) -> None:
-        if self.grabador is not None and self.grabador.partida.acciones:
+        if self.config.carpeta_partidas and self.grabador.partida.acciones:
             self.grabador.guardar(self.match, self.config.carpeta_partidas)
         self.grabada = True
+
+    def restaurar(self, acciones: Sequence[tuple[int, dict]]) -> None:
+        """Repite unas jugadas ya hechas (al reconstruir la mesa tras un reinicio)."""
+        al_cambiar, self.al_cambiar = self.al_cambiar, None  # ya están guardadas
+        try:
+            with self.lock:
+                for asiento, datos in acciones:
+                    if self.match.terminada or self.match.state.turno != asiento:
+                        raise ValueError("Las jugadas guardadas no cuadran con la partida")
+                    jugador = self.jugadores[asiento]
+                    if isinstance(jugador, JugadorWeb):
+                        jugador.pendiente = accion_desde_dict(datos)
+                    self.match.step()
+                    self.version += 1
+        finally:
+            self.al_cambiar = al_cambiar
 
     def avanzar(self) -> None:
         """Juega por los bots las jugadas que ya tocan según el reloj."""
@@ -223,6 +256,8 @@ class GestorMesas:
         self.reloj = reloj
         self._mesas: dict[str, Mesa] = {}
         self._lock = threading.Lock()
+        #: Reconstruye una mesa que ya no está en memoria (las de los torneos privados).
+        self.restaurador: Callable[[str], Mesa | None] | None = None
 
     def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "normal",
               nombres: Sequence[str | None] = ()) -> Mesa:
@@ -236,9 +271,26 @@ class GestorMesas:
 
     def obtener(self, mesa_id: str) -> Mesa:
         mesa = self._mesas.get(mesa_id)
+        if mesa is None and self.restaurador is not None:
+            with self._lock:
+                mesa = self._mesas.get(mesa_id)  # quizá la ha reconstruido otra petición
+                if mesa is None:
+                    mesa = self.restaurador(mesa_id)
+                    if mesa is not None:
+                        self._mesas[mesa.id] = mesa
         if mesa is None:
             raise ErrorMesa("La mesa no existe o se ha cerrado por inactividad", 404)
         return mesa
+
+    def poner(self, mesa: Mesa) -> Mesa:
+        """Añade una mesa creada fuera (las de los torneos privados no cuentan en el límite)."""
+        self.limpiar()
+        with self._lock:
+            return self._mesas.setdefault(mesa.id, mesa)
+
+    def quitar(self, mesa_id: str) -> None:
+        with self._lock:
+            self._mesas.pop(mesa_id, None)
 
     def limpiar(self) -> None:
         """Cierra las mesas sin actividad (y graba lo que tuvieran jugado)."""

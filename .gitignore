@@ -46,3 +46,5 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# Base de datos local de la web (cuentas y torneos privados)
+mus_web.db

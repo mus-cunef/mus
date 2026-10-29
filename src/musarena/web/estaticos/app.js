@@ -4,6 +4,8 @@
  * puede colar código en la página de otro jugador a través del chat o de un nombre.
  * El código secreto de cada asiento va detrás del "#" del enlace (#/mesa/<id>/<código>):
  * esa parte nunca se manda a ningún servidor; aquí se envía en la cabecera X-Token.
+ * La sesión de la cuenta va en una cookie HttpOnly (esta página no la puede leer), y cada
+ * petición lleva la cabecera X-Mus, que otra web no puede poner (protección contra CSRF).
  */
 "use strict";
 
@@ -27,7 +29,7 @@ function el(etiqueta, atributos = {}, ...hijos) {
 }
 
 async function api(metodo, ruta, datos, token) {
-  const opciones = { method: metodo, headers: {} };
+  const opciones = { method: metodo, headers: { "X-Mus": "1" } };
   if (datos !== undefined) {
     opciones.headers["Content-Type"] = "application/json";
     opciones.body = JSON.stringify(datos);
@@ -99,7 +101,9 @@ const reverso = (pequena) => el("div", { class: `carta reverso${pequena ? " pequ
 
 // --- Navegación -----------------------------------------------------------------------
 
-const VISTAS = ["inicio", "mesa", "torneo", "clasificacion", "reglas"];
+const VISTAS = ["inicio", "mesa", "torneo", "clasificacion", "reglas", "entrar", "torneos", "t"];
+// Pestaña de la barra que se marca en cada vista.
+const PESTANA = { mesa: "inicio", t: "torneos", entrar: "torneos" };
 
 function ruta() {
   const partes = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -111,14 +115,18 @@ function mostrar() {
   const vista = VISTAS.includes(nombre) ? nombre : "inicio";
   for (const v of VISTAS) $(`#vista-${v}`).hidden = v !== vista;
   for (const a of document.querySelectorAll(".barra nav a")) {
-    a.classList.toggle("activa", a.dataset.ruta === (vista === "mesa" ? "inicio" : vista));
+    a.classList.toggle("activa", a.dataset.ruta === (PESTANA[vista] || vista));
   }
   if (vista !== "mesa") Mesa.parar();
+  if (vista !== "t") Privado.parar();
   if (vista === "inicio") Inicio.abrir();
   if (vista === "mesa") Mesa.abrir(partes[0], partes[1]);
   if (vista === "torneo") Torneo.abrir();
   if (vista === "clasificacion") Clasificacion.abrir();
   if (vista === "reglas") Reglas.abrir();
+  if (vista === "entrar") Cuenta.abrir();
+  if (vista === "torneos") Privados.abrir();
+  if (vista === "t") Privado.abrir(partes[0]);
 }
 
 // --- Inicio: crear una mesa -----------------------------------------------------------
@@ -306,8 +314,12 @@ const Mesa = {
   },
 
   pintarError(texto) {
-    $("#centro").replaceChildren(el("p", { class: "lance" }, "Mesa no disponible"), el("p", {}, texto),
-      el("a", { class: "boton principal", href: "#/" }, "Crear otra mesa"));
+    let volver = null;
+    try { volver = sessionStorage.getItem(`volver:${this.id}`); } catch { /* sin almacenamiento */ }
+    $("#centro").replaceChildren(el("p", { class: "lance" }, "Mesa no disponible"),
+      el("p", {}, volver ? "Este partido ya no se juega en esta mesa (quizá el organizador lo ha dado por terminado)." : texto),
+      volver ? el("a", { class: "boton principal", href: volver }, "Volver al torneo")
+        : el("a", { class: "boton principal", href: "#/" }, "Crear otra mesa"));
     $("#acciones").replaceChildren();
   },
 
@@ -377,9 +389,12 @@ const Mesa = {
     const hijos = [];
     if (v.ganador !== null) {
       const ganamos = v.ganador === v.pareja;
+      let volver = null;  // las mesas de los torneos privados vuelven al torneo
+      try { volver = sessionStorage.getItem(`volver:${this.id}`); } catch { /* sin almacenamiento */ }
       hijos.push(el("p", { class: "lance" }, ganamos ? "¡Habéis ganado!" : "Han ganado los rivales"),
         el("p", {}, `Vacas: ${v.vacas[v.pareja]} a ${v.vacas[1 - v.pareja]}`),
-        el("a", { class: "boton principal", href: "#/" }, "Jugar otra partida"));
+        volver ? el("a", { class: "boton principal", href: volver }, "Volver al torneo")
+          : el("a", { class: "boton principal", href: "#/" }, "Jugar otra partida"));
     } else {
       const titulo = v.fase === "mus" ? (v.corrida ? "Mano corrida" : "Mus") : v.fase === "descarte" ? "Descartes" : LANCES[v.lance] || "";
       hijos.push(el("p", { class: "lance" }, titulo));
@@ -602,6 +617,480 @@ function pintarResultado(r, contenedor) {
       el("ul", {}, r.incidencias.map((i) => el("li", {}, el("strong", {}, i.nombre), `: ${i.motivo}`)))] : []);
 }
 
+// --- Cuenta ---------------------------------------------------------------------------
+// La sesión va en una cookie que el JavaScript no puede leer: aquí solo se pregunta al
+// servidor quién soy. Si una página necesita sesión, se apunta a dónde volver y se va a entrar.
+
+const Cuenta = {
+  usuario: undefined,  // undefined: aún no se sabe; null: sin sesión
+
+  async cargar() {
+    try {
+      this.usuario = (await api("GET", "/api/cuenta")).usuario;
+    } catch {
+      this.usuario = null;
+    }
+    this.pintarBarra();
+    return this.usuario;
+  },
+
+  pintarBarra() {
+    const caja = $("#cuenta-barra");
+    if (this.usuario) {
+      poner(caja, el("span", { class: "quien-soy" }, this.usuario.nombre),
+        el("button", { class: "boton pequeno", type: "button", onclick: () => this.salir() }, "Salir"));
+    } else {
+      poner(caja, el("a", { class: "boton pequeno", href: "#/entrar" }, "Entrar"));
+    }
+  },
+
+  // Para las páginas que necesitan sesión: si no la hay, manda a entrar y luego vuelve aquí.
+  async exigir(motivo) {
+    if (this.usuario === undefined) await this.cargar();
+    if (this.usuario) return true;
+    try { sessionStorage.setItem("destino", location.hash); } catch { /* sin almacenamiento */ }
+    $("#motivo-entrar").textContent = motivo;
+    location.hash = "#/entrar";
+    return false;
+  },
+
+  abrir() {
+    for (const f of ["#form-entrar", "#form-registro"]) $(".error", $(f)).hidden = true;
+    if (this.usuario) this.volver();
+  },
+
+  volver() {
+    let destino = "#/torneos";
+    try {
+      destino = sessionStorage.getItem("destino") || destino;
+      sessionStorage.removeItem("destino");
+    } catch { /* sin almacenamiento */ }
+    location.hash = destino;
+  },
+
+  async enviar(evento, ruta, prefijo) {
+    evento.preventDefault();
+    const form = evento.currentTarget;
+    const error = $(".error", form);
+    error.hidden = true;
+    const boton = $("button[type=submit]", form);
+    boton.disabled = true;
+    try {
+      const datos = await api("POST", ruta, { nombre: $(`#${prefijo}-nombre`).value.trim(), clave: $(`#${prefijo}-clave`).value });
+      this.usuario = datos.usuario;
+      form.reset();
+      this.pintarBarra();
+      Privados.lista = null;
+      this.volver();
+    } catch (e) {
+      error.textContent = e.message;
+      error.hidden = false;
+    } finally {
+      boton.disabled = false;
+    }
+  },
+
+  async salir() {
+    try { await api("POST", "/api/cuenta/salir", {}); } catch { /* da igual: se borra aquí */ }
+    this.usuario = null;
+    this.pintarBarra();
+    location.hash = "#/";
+  },
+};
+
+// --- Torneos privados: lista y crear ---------------------------------------------------
+
+const ESTADOS = { inscripcion: "Inscripción abierta", en_curso: "En juego", terminado: "Terminado", cancelado: "Cancelado" };
+
+const fecha = (segundos) => new Date(segundos * 1000).toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+
+function falta(segundos) {
+  if (segundos <= 0) return "ya ha pasado";
+  const min = Math.round(segundos / 60);
+  if (min < 60) return `faltan ${min} min`;
+  const horas = Math.round(min / 60);
+  if (horas < 48) return `faltan ${horas} h`;
+  return `faltan ${Math.round(horas / 24)} días`;
+}
+
+// datetime-local trabaja en la hora del navegador: se convierte a segundos UTC para el servidor.
+function aLocal(fechaJs) {
+  const d = new Date(fechaJs.getTime() - fechaJs.getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+const Privados = {
+  lista: null, previa: null,
+
+  async abrir() {
+    if (!(await Cuenta.exigir("Para organizar un torneo o ver los tuyos, entra o crea una cuenta."))) return;
+    const fechaInput = $("#privado-fecha");
+    if (!fechaInput.value) {
+      const d = new Date(Date.now() + 7 * 864e5);
+      d.setHours(22, 0, 0, 0);
+      fechaInput.value = aLocal(d);
+      fechaInput.min = aLocal(new Date());
+    }
+    this.ajustarFormulario();
+    try {
+      const { torneos } = await api("GET", "/api/privados");
+      this.pintarLista(torneos);
+    } catch (e) {
+      poner($("#mis-torneos"), el("p", { class: "error" }, e.message));
+    }
+  },
+
+  pintarLista(torneos) {
+    const caja = $("#mis-torneos");
+    if (!torneos.length) { caja.replaceChildren(); return; }
+    poner(caja, el("div", { class: "tarjeta" }, el("h2", {}, "Tus torneos"),
+      el("ul", { class: "lista-torneos" }, torneos.map((t) => el("li", {},
+        el("a", { href: `#/t/${t.codigo}` }, t.nombre),
+        el("span", { class: `chip-estado ${t.estado}` }, ESTADOS[t.estado]),
+        el("small", {}, `${t.parejas}/${t.max_parejas} parejas${t.organizo ? " · lo organizas tú" : ""}`))))));
+  },
+
+  formato() {
+    const tipo = $("#opciones-formato input:checked").value;
+    return {
+      tipo, max_parejas: Number($("#privado-parejas").value),
+      tam_grupo: Number($("#privado-tam-grupo").value), pasan_por_grupo: Number($("#privado-pasan").value),
+      mejor_de: Number($("#privado-mejor-de").value), mejor_de_final: Number($("#privado-mejor-de-final").value),
+      tercer_puesto: $("#privado-tercero").checked,
+    };
+  },
+
+  ajustarFormulario() {
+    const tipo = $("#opciones-formato input:checked").value;
+    for (const n of document.querySelectorAll("#form-privado .solo-grupos")) n.hidden = tipo !== "grupos";
+    for (const n of document.querySelectorAll("#form-privado .no-liga")) n.hidden = tipo === "liga";
+    $("#privado-pasan").max = Math.max(1, Number($("#privado-tam-grupo").value) - 1);
+    clearTimeout(this.previa);
+    this.previa = setTimeout(() => this.vistaPrevia(), 200);
+  },
+
+  async vistaPrevia() {
+    const caja = $("#vista-previa");
+    try {
+      const { descripcion } = await api("POST", "/api/privados/vista-previa", { formato: this.formato() });
+      caja.textContent = `Con el torneo lleno: ${descripcion}`;
+      caja.classList.remove("error");
+    } catch (e) {
+      caja.textContent = e.message;
+      caja.classList.add("error");
+    }
+  },
+
+  async crear(evento) {
+    evento.preventDefault();
+    const form = evento.currentTarget;
+    const error = $(".error", form);
+    error.hidden = true;
+    const limite = new Date($("#privado-fecha").value).getTime() / 1000;
+    if (!(limite > Date.now() / 1000)) {
+      error.textContent = "La fecha límite tiene que ser futura.";
+      error.hidden = false;
+      return;
+    }
+    const boton = $("button[type=submit]", form);
+    boton.disabled = true;
+    try {
+      const { codigo } = await api("POST", "/api/privados", { nombre: $("#privado-nombre").value.trim(), formato: this.formato(), fecha_limite: limite });
+      $("#privado-nombre").value = "";
+      try { sessionStorage.setItem(`recien:${codigo}`, "1"); } catch { /* sin almacenamiento */ }
+      location.hash = `#/t/${codigo}`;
+    } catch (e) {
+      error.textContent = e.message;
+      error.hidden = false;
+    } finally {
+      boton.disabled = false;
+    }
+  },
+};
+
+// --- Un torneo privado ------------------------------------------------------------------
+
+const Privado = {
+  codigo: null, v: null, temporizador: null, firma: "",
+
+  async abrir(codigo) {
+    if (!codigo) { location.hash = "#/torneos"; return; }
+    if (!(await Cuenta.exigir("Te han invitado a un torneo: entra o crea una cuenta para verlo e inscribirte."))) return;
+    if (codigo !== this.codigo) { this.codigo = codigo; this.v = null; this.firma = ""; $("#privado").replaceChildren(el("p", {}, "Cargando…")); }
+    this.refrescar();
+  },
+
+  parar() { clearTimeout(this.temporizador); this.temporizador = null; },
+
+  async refrescar() {
+    this.parar();
+    try {
+      this.pintar(await api("GET", `/api/privados/${this.codigo}`));
+    } catch (e) {
+      if (e.codigo === 401) { Cuenta.usuario = undefined; this.abrir(this.codigo); return; }
+      poner($("#privado"), el("h1", {}, "Torneo no disponible"), el("p", {}, e.message),
+        el("a", { class: "boton principal", href: "#/torneos" }, "Ir a tus torneos"));
+      return;
+    }
+    // Mientras está vivo, se mira cada pocos segundos (inscripciones, resultados, cuadro).
+    if (ruta().nombre === "t" && ["inscripcion", "en_curso"].includes(this.v.estado)) {
+      this.temporizador = setTimeout(() => this.refrescar(), 5000);
+    }
+  },
+
+  async accion(metodo, ruta_, datos, confirmar) {
+    if (confirmar && !confirm(confirmar)) return;
+    try {
+      this.pintar(await api(metodo, `/api/privados/${this.codigo}${ruta_}`, datos ?? {}));
+    } catch (e) {
+      this.aviso(e.message);
+    }
+  },
+
+  aviso(texto) {
+    const caja = $("#aviso-privado");
+    if (!caja) return;
+    caja.textContent = texto;
+    caja.hidden = !texto;
+    if (texto) caja.scrollIntoView({ block: "center", behavior: "smooth" });
+  },
+
+  nombre(id) {
+    if (id === null || id === undefined) return null;
+    const p = this.v.parejas.find((x) => x.id === id);
+    return p ? p.nombre : "?";
+  },
+
+  pareja(id) { return this.v.parejas.find((x) => x.id === id); },
+
+  pintar(v) {
+    // Si nada ha cambiado no se rehace la página (no se pierde lo que se está escribiendo).
+    const firma = JSON.stringify({ ...v, ahora: 0 });
+    this.v = v;
+    if (firma === this.firma) { this.pintarPlazo(); return; }
+    const escribiendo = document.activeElement && document.activeElement.closest && document.activeElement.closest("#form-pareja");
+    if (escribiendo && v.estado === "inscripcion" && this.firma) return;  // se repinta al salir
+    this.firma = firma;
+    const partes = [
+      el("p", { class: "migas" }, el("a", { href: "#/torneos" }, "Torneos"), " / "),
+      el("h1", {}, v.nombre),
+      el("p", { class: "entradilla" },
+        el("span", { class: `chip-estado ${v.estado}` }, ESTADOS[v.estado]), ` Organiza ${v.organizador}. `,
+        v.estado === "inscripcion"
+          ? `Formato con el torneo lleno (${v.formato.max_parejas} parejas): ${v.descripcion_lleno.replace(/^\d+ parejas: /, "")}`
+          : v.estado !== "cancelado" ? v.descripcion : ""),
+      el("p", { id: "aviso-privado", class: "error", hidden: true }),
+    ];
+    if (v.campeon !== null) partes.push(this.campeon());
+    if (v.estado === "inscripcion") partes.push(this.invitacion(), this.inscripcion());
+    if (v.estado === "en_curso" && v.yo.pareja !== null) partes.push(this.misPartidos());
+    if (v.grupos && v.grupos.length) partes.push(this.grupos());
+    if (v.liga) partes.push(this.liga());
+    if (v.cuadro) partes.push(this.cuadro());
+    if (v.estado !== "inscripcion") partes.push(this.estadisticas());
+    partes.push(this.listaParejas());
+    if (v.organizo && (v.estado === "inscripcion" || v.estado === "en_curso")) partes.push(this.organizador());
+    poner($("#privado"), partes);
+    this.pintarPlazo();
+  },
+
+  pintarPlazo() {
+    const caja = $("#plazo");
+    if (caja && this.v) caja.textContent = `La inscripción termina el ${fecha(this.v.fecha_limite)} (${falta(this.v.fecha_limite - this.v.ahora)}).`;
+  },
+
+  campeon() {
+    const p = this.pareja(this.v.campeon);
+    return el("div", { class: "tarjeta campeon" }, el("p", { class: "copa", "aria-hidden": "true" }, "🏆"),
+      el("div", {}, el("h2", {}, `Campeones: ${p.nombre}`), el("p", {}, p.jugadores.join(" y "))));
+  },
+
+  invitacion() {
+    const url = `${location.origin}${location.pathname}#/t/${this.v.codigo}`;
+    const codigo = el("code", {}, url);
+    let recien = false;
+    try { recien = sessionStorage.getItem(`recien:${this.v.codigo}`) === "1"; } catch { /* sin almacenamiento */ }
+    return el("div", { class: `tarjeta invitacion${recien ? " destacada" : ""}` },
+      el("h2", {}, recien ? "¡Torneo creado! Invita a la gente" : "Enlace de invitación"),
+      el("p", {}, "Pásalo a quien quieras invitar. Cada uno entra con su cuenta y una persona de cada pareja la inscribe con el nombre de usuario de su compañero."),
+      codigo,
+      el("div", { class: "fila" }, el("button", { class: "boton principal", type: "button", onclick: (e) => copiar(url, e.currentTarget, codigo) }, "Copiar enlace")),
+      el("p", { id: "plazo", class: "pista" }));
+  },
+
+  inscripcion() {
+    const v = this.v;
+    const mia = v.yo.pareja !== null ? this.pareja(v.yo.pareja) : null;
+    const invitaciones = v.parejas.filter((p) => p.invitado_yo);
+    const caja = el("div", { class: "tarjeta" }, el("h2", {}, "Tu inscripción"));
+    for (const p of invitaciones) {
+      caja.append(el("div", { class: "invitacion-pareja" },
+        el("p", {}, el("strong", {}, p.jugadores[0]), ` te invita a formar la pareja «${p.nombre}».`),
+        el("div", { class: "fila" },
+          el("button", { class: "boton principal", type: "button", onclick: () => this.accion("POST", `/parejas/${p.id}/aceptar`) }, "Aceptar"),
+          el("button", { class: "boton", type: "button", onclick: () => this.accion("POST", `/parejas/${p.id}/retirar`, {}, "¿Rechazar la invitación?") }, "Rechazar"))));
+    }
+    if (mia && !mia.invitado_yo) {
+      const companero = mia.jugadores.find((j) => j !== v.yo.nombre);
+      caja.append(el("p", {}, mia.confirmada
+        ? ["Estás inscrito con ", el("strong", {}, companero), ` como «${mia.nombre}». ¡A esperar al sorteo!`]
+        : ["Has inscrito a «", mia.nombre, "». Falta que ", el("strong", {}, companero), " entre con su cuenta y acepte."]),
+      el("button", { class: "boton", type: "button", onclick: () => this.accion("POST", `/parejas/${mia.id}/retirar`, {}, "¿Seguro que quieres retirar la pareja?") }, "Retirar la pareja"));
+    } else if (!mia) {
+      const completo = v.parejas.filter((p) => p.confirmada).length >= v.formato.max_parejas;
+      if (completo) caja.append(el("p", {}, "El torneo está completo."));
+      else caja.append(el("form", { id: "form-pareja", class: "form-pareja", onsubmit: (e) => this.inscribir(e) },
+        el("label", {}, "Nombre de la pareja", el("input", { id: "pareja-nombre", maxlength: 30, required: true, placeholder: "Los del as de oros" })),
+        el("label", {}, "Usuario de tu compañero", el("input", { id: "pareja-companero", maxlength: 20, required: true, autocomplete: "off", placeholder: "Su nombre de usuario" })),
+        el("button", { class: "boton principal", type: "submit" }, "Inscribir pareja"),
+        el("p", { class: "pista" }, "Tu compañero tiene que tener cuenta. Le llegará la invitación aquí mismo, al abrir el enlace del torneo.")));
+    }
+    return caja;
+  },
+
+  async inscribir(evento) {
+    evento.preventDefault();
+    const boton = $("button[type=submit]", evento.currentTarget);
+    boton.disabled = true;
+    try {
+      const v = await api("POST", `/api/privados/${this.codigo}/parejas`, { nombre: $("#pareja-nombre").value.trim(), companero: $("#pareja-companero").value.trim() });
+      document.activeElement.blur();
+      this.firma = "";
+      this.pintar(v);
+    } catch (e) {
+      this.aviso(e.message);
+      boton.disabled = false;
+    }
+  },
+
+  listaParejas() {
+    const v = this.v;
+    const confirmadas = v.parejas.filter((p) => p.confirmada).length;
+    const filas = v.parejas.map((p) => el("tr", { class: p.id === v.yo.pareja ? "mia" : null },
+      el("td", { class: "izq" }, p.nombre), el("td", { class: "izq" }, p.jugadores.join(" y ")),
+      v.estado === "inscripcion" ? el("td", { class: "izq" }, p.confirmada ? "Inscrita" : "Falta que acepte el compañero") : null,
+      v.organizo && v.estado === "inscripcion"
+        ? el("td", {}, el("button", { class: "boton pequeno", type: "button", onclick: () => this.accion("POST", `/parejas/${p.id}/retirar`, {}, `¿Quitar a «${p.nombre}» del torneo?`) }, "Quitar"))
+        : null));
+    return el("div", { class: "tarjeta" },
+      el("h2", {}, `Parejas (${confirmadas}${v.estado === "inscripcion" ? ` de ${v.formato.max_parejas}` : ""})`),
+      v.parejas.length
+        ? el("div", { class: "tabla" }, el("table", { class: "datos" }, el("tbody", {}, filas)))
+        : el("p", {}, "Todavía no se ha inscrito ninguna pareja."));
+  },
+
+  organizador() {
+    const v = this.v;
+    const confirmadas = v.parejas.filter((p) => p.confirmada).length;
+    const hijos = [el("h2", {}, "Organización")];
+    const botones = [];
+    if (v.estado === "inscripcion") {
+      hijos.push(el("p", {}, "Al llegar la fecha límite se sortea solo con las parejas inscritas (hacen falta al menos 2). Si ya están todas, puedes sortear antes."),
+        el("p", {}, confirmadas >= 2 ? `Si sorteas ahora, con ${confirmadas} parejas: ${v.descripcion.replace(/^\d+ parejas: /, "")}`
+          : `Ahora hay ${confirmadas} pareja${confirmadas === 1 ? "" : "s"} inscrita${confirmadas === 1 ? "" : "s"}.`));
+      botones.push(el("button", { class: "boton principal", type: "button", disabled: confirmadas < 2,
+        onclick: () => this.accion("POST", "/empezar", {}, `¿Cerrar la inscripción y sortear con ${confirmadas} parejas?`) }, "Sortear y empezar ahora"));
+    } else {
+      hijos.push(el("p", {}, "Si una pareja no se presenta, pulsa «No se presentan» en su partido y dalo por ganado a la otra."));
+    }
+    botones.push(el("button", { class: "boton peligro", type: "button", onclick: () => this.accion("POST", "/cancelar", {}, "¿Cancelar el torneo? No se puede deshacer.") }, "Cancelar el torneo"));
+    hijos.push(el("div", { class: "fila" }, botones));
+    return el("div", { class: "tarjeta" }, hijos);
+  },
+
+  // Un partido: las dos parejas, el resultado y, si toca, el botón para jugar.
+  partido(p, opciones = {}) {
+    const v = this.v;
+    const lado = (id, vacas) => {
+      const gana = p.estado === "terminado" && p.ganador === id && id !== null;
+      return el("div", { class: `lado${gana ? " gana" : ""}${id === null ? " vacio" : ""}${id !== null && id === v.yo.pareja ? " mio" : ""}` },
+        el("span", {}, id === null ? (p.pase && p.estado === "terminado" ? "pase directo" : "por decidir") : this.nombre(id)),
+        p.estado === "terminado" && !p.pase ? el("b", {}, vacas) : null);
+    };
+    const pie = [];
+    if (p.estado === "terminado" && p.pase && p.a !== null && p.b !== null) pie.push(el("small", {}, "ganado sin jugar"));
+    if (p.estado === "jugando") pie.push(el("small", { class: "en-juego" }, "jugándose ahora"));
+    if (p.puedo_jugar) pie.push(el("button", { class: "boton principal pequeno", type: "button", onclick: () => this.jugar(p) }, p.estado === "jugando" ? "Volver a la mesa" : "Jugar"));
+    if (v.organizo && v.estado === "en_curso" && (p.estado === "listo" || p.estado === "jugando") && !opciones.sinOrganizar) {
+      pie.push(el("details", { class: "dar-ganador" }, el("summary", {}, "No se presentan"),
+        [p.a, p.b].map((id) => el("button", { class: "boton pequeno", type: "button",
+          onclick: () => this.accion("POST", `/partidos/${p.id}/ganador`, { pareja: id }, `¿Dar el partido por ganado a «${this.nombre(id)}»?`) }, `Gana ${this.nombre(id)}`))));
+    }
+    return el("div", { class: `partido${p.mio ? " mio" : ""}` }, lado(p.a, p.vacas[0]), lado(p.b, p.vacas[1]),
+      pie.length ? el("div", { class: "pie-partido" }, pie) : null);
+  },
+
+  async jugar(p) {
+    try {
+      const d = await api("POST", `/api/privados/${this.codigo}/partidos/${p.id}/entrar`, {});
+      try { sessionStorage.setItem(`volver:${d.mesa}`, `#/t/${this.codigo}`); } catch { /* sin almacenamiento */ }
+      location.hash = `#/mesa/${d.mesa}/${d.token}`;
+    } catch (e) {
+      this.aviso(e.message);
+    }
+  },
+
+  misPartidos() {
+    const mios = this.v.partidos.filter((p) => p.mio && (p.estado === "listo" || p.estado === "jugando"));
+    const eliminada = !mios.length && !this.v.partidos.some((p) => p.mio && p.estado === "esperando");
+    const texto = eliminada ? "No te queda ningún partido: puedes seguir el torneo desde aquí."
+      : "Ahora no tienes ningún partido pendiente: espera a que se decida tu rival.";
+    return el("div", { class: `tarjeta${mios.length ? " destacada" : ""}` }, el("h2", {}, "Tus partidos"),
+      mios.length ? [el("p", {}, "Quedad los cuatro y entrad con vuestra cuenta: cada uno juega desde su dispositivo y la mesa espera a quien le toque."),
+        el("div", { class: "partidos-lista" }, mios.map((p) => this.partido(p, { sinOrganizar: true })))] : el("p", {}, texto));
+  },
+
+  tablaClasificacion(filas, pasan) {
+    const signo = (x) => (x > 0 ? `+${x}` : `${x}`);
+    return el("div", { class: "tabla" }, el("table", { class: "datos" },
+      el("thead", {}, el("tr", {}, el("th", {}, "#"), el("th", { class: "izq" }, "Pareja"), el("th", {}, "J"), el("th", {}, "G"), el("th", {}, "P"),
+        el("th", {}, "Vacas"), el("th", {}, "Tantos"))),
+      el("tbody", {}, filas.map((f, i) => el("tr", { class: [i < pasan ? "pasa" : "", f.pareja === this.v.yo.pareja ? "mia" : ""].join(" ").trim() || null },
+        el("td", {}, i + 1), el("td", { class: "izq" }, this.nombre(f.pareja)), el("td", {}, f.jugados), el("td", {}, f.ganados), el("td", {}, f.perdidos),
+        el("td", {}, `${f.vacas[0]}-${f.vacas[1]}`), el("td", {}, signo(f.tantos[0] - f.tantos[1])))))));
+  },
+
+  grupos() {
+    const v = this.v;
+    return el("div", { class: "tarjeta" }, el("h2", {}, "Fase de grupos"),
+      el("p", { class: "pista" }, `Pasan las ${v.grupos[0].pasan} primeras de cada grupo (en verde). Desempates: partidos ganados, diferencia de vacas y diferencia de tantos.`),
+      el("div", { class: "grupos" }, v.grupos.map((g) => el("section", { class: "grupo" }, el("h3", {}, g.nombre),
+        this.tablaClasificacion(g.tabla, g.pasan),
+        el("div", { class: "partidos-lista" }, v.partidos.filter((p) => p.fase === "grupos" && p.grupo === g.numero).map((p) => this.partido(p)))))));
+  },
+
+  liga() {
+    const v = this.v;
+    return el("div", { class: "tarjeta" }, el("h2", {}, "Liga"), this.tablaClasificacion(v.liga, 1),
+      el("div", { class: "partidos-lista" }, v.partidos.filter((p) => p.fase === "liga").map((p) => this.partido(p))));
+  },
+
+  cuadro() {
+    const v = this.v;
+    const porId = Object.fromEntries(v.partidos.map((p) => [p.id, p]));
+    const tercero = v.cuadro.tercero !== null ? porId[v.cuadro.tercero] : null;
+    return el("div", { class: "tarjeta" }, el("h2", {}, "Cuadro"),
+      el("div", { class: "cuadro", role: "list" }, v.cuadro.rondas.map((r) => el("div", { class: "ronda", role: "listitem" },
+        el("h3", {}, r.nombre), el("div", { class: "partidos-ronda" }, r.partidos.map((id) => this.partido(porId[id])))))),
+      tercero ? el("div", { class: "tercero" }, el("h3", {}, "Tercer puesto"), this.partido(tercero)) : null);
+  },
+
+  estadisticas() {
+    const v = this.v;
+    const filas = [...v.estadisticas].sort((a, b) => b.ganados - a.ganados || (b.vacas[0] - b.vacas[1]) - (a.vacas[0] - a.vacas[1]));
+    const pct = (a, b) => (b ? `${Math.round((100 * a) / b)} %` : "—");
+    return el("div", { class: "tarjeta" }, el("h2", {}, "Estadísticas"),
+      el("div", { class: "tabla" }, el("table", { class: "datos" },
+        el("thead", {}, el("tr", {}, el("th", { class: "izq" }, "Pareja"), el("th", {}, "Jugados"), el("th", {}, "Ganados"), el("th", {}, "% victorias"),
+          el("th", {}, "Vacas"), el("th", {}, "Tantos"), el("th", {}, "Manos ganadas"), el("th", {}, "Envites"), el("th", {}, "Órdagos (ganados)"))),
+        el("tbody", {}, filas.map((e) => el("tr", { class: e.pareja === v.yo.pareja ? "mia" : null },
+          el("td", { class: "izq" }, this.nombre(e.pareja)), el("td", {}, e.jugados), el("td", {}, e.ganados), el("td", {}, pct(e.ganados, e.jugados)),
+          el("td", {}, `${e.vacas[0]}-${e.vacas[1]}`), el("td", {}, `${e.tantos[0]}-${e.tantos[1]}`), el("td", {}, e.manos), el("td", {}, e.envites),
+          el("td", {}, `${e.ordagos} (${e.ordagos_ganados})`)))))),
+      el("p", { class: "pista" }, "Los partidos ganados sin jugar cuentan en partidos y vacas, pero no en tantos, manos, envites ni órdagos."));
+  },
+};
+
 // --- Clasificación y reglas -----------------------------------------------------------
 
 const Clasificacion = {
@@ -636,7 +1125,12 @@ const Reglas = {
 $("#form-mesa").addEventListener("submit", (e) => Inicio.crear(e));
 $("#form-chat").addEventListener("submit", (e) => Mesa.escribir(e));
 $("#form-torneo").addEventListener("submit", (e) => Torneo.lanzar(e));
+$("#form-entrar").addEventListener("submit", (e) => Cuenta.enviar(e, "/api/cuenta/entrar", "entrar"));
+$("#form-registro").addEventListener("submit", (e) => Cuenta.enviar(e, "/api/cuenta/registro", "registro"));
+$("#form-privado").addEventListener("submit", (e) => Privados.crear(e));
+$("#form-privado").addEventListener("input", () => Privados.ajustarFormulario());
 window.addEventListener("hashchange", mostrar);
+Cuenta.cargar();
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("#resumen-mano").hidden) $("#resumen-mano button").click();
 });

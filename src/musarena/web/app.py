@@ -19,6 +19,11 @@ GET      ``/api/reglas``                Las reglas (Markdown)
 
 El código de cada asiento va en la cabecera ``X-Token`` y, en la página, detrás del ``#`` del
 enlace (esa parte nunca se manda a ningún servidor), así no queda en registros ni se filtra.
+
+Cuentas y torneos privados (ver :mod:`musarena.web.privados`): ``/api/cuenta`` (registro,
+entrada, salida) y ``/api/privados`` (crear, ver, inscribirse, aceptar, empezar, jugar…). La
+sesión va en una cookie ``HttpOnly`` y, contra peticiones falsificadas desde otras webs (CSRF),
+las que cambian algo tienen que llevar la cabecera ``X-Mus`` (otra web no puede ponerla).
 """
 
 from __future__ import annotations
@@ -26,9 +31,10 @@ from __future__ import annotations
 import json
 import time
 import urllib.request
+from collections.abc import Callable
 from importlib import resources
 
-from fastapi import FastAPI, Header, Request
+from fastapi import Cookie, FastAPI, Header, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -36,9 +42,16 @@ from pydantic import BaseModel, Field
 from musarena import __version__
 from musarena.players import TIPOS
 from musarena.players.externos import es_bot_externo
+from musarena.web.bd import conectar
 from musarena.web.config import Config
+from musarena.web.cuentas import Cuentas, Usuario
+from musarena.web.formato import Formato, describir
 from musarena.web.mesas import ErrorMesa, GestorMesas, etiqueta, tipos_permitidos
+from musarena.web.privados import Privados
 from musarena.web.torneos import GestorTorneos
+
+#: Cookie con el código de la sesión.
+COOKIE = "mus_sesion"
 
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 
@@ -64,6 +77,31 @@ class NuevoTorneo(BaseModel):
     partidas: int = 100
 
 
+class Credenciales(BaseModel):
+    nombre: str = Field(max_length=100)
+    clave: str = Field(max_length=200)
+
+
+class NuevoPrivado(BaseModel):
+    nombre: str = Field(max_length=200)
+    formato: dict
+    fecha_limite: float  # segundos desde 1970 (UTC)
+
+
+class VistaPrevia(BaseModel):
+    formato: dict
+    parejas: int | None = None
+
+
+class NuevaPareja(BaseModel):
+    nombre: str = Field(max_length=200)
+    companero: str = Field(max_length=100)
+
+
+class Ganador(BaseModel):
+    pareja: int
+
+
 def _descripcion(tipo: str) -> str:
     if tipo == "humano":
         return "Una persona desde su navegador"
@@ -75,14 +113,19 @@ def _descripcion(tipo: str) -> str:
 
 
 def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
-              torneos: GestorTorneos | None = None) -> FastAPI:
-    """Crea la aplicación (los tests le pasan una configuración y gestores a medida)."""
+              torneos: GestorTorneos | None = None,
+              reloj: Callable[[], float] = time.time) -> FastAPI:
+    """Crea la aplicación (los tests le pasan una configuración y gestores a medida, y
+    ``reloj`` para controlar la hora de las cuentas y los torneos privados)."""
     config = config or Config.desde_entorno()
     app = FastAPI(title="Mus Arena", version=__version__, docs_url="/api/docs",
                   redoc_url=None)
     app.state.config = config
     app.state.mesas = mesas if mesas is not None else GestorMesas(config)
     app.state.torneos = torneos if torneos is not None else GestorTorneos(config)
+    motor = conectar(config.bd)
+    app.state.cuentas = Cuentas(motor, reloj)
+    app.state.privados = Privados(motor, app.state.cuentas, app.state.mesas, config, reloj)
 
     @app.exception_handler(ErrorMesa)
     async def error_mesa(_: Request, e: ErrorMesa) -> JSONResponse:
@@ -90,7 +133,12 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     @app.middleware("http")
     async def cabeceras_de_seguridad(request: Request, call_next):
+        protegida = request.url.path.startswith(("/api/cuenta", "/api/privados"))
+        if protegida and request.method != "GET" and request.headers.get("X-Mus") != "1":
+            return JSONResponse({"detalle": "Petición no permitida"}, status_code=403)
         respuesta = await call_next(request)
+        if protegida:
+            respuesta.headers["Cache-Control"] = "no-store"
         respuesta.headers["Referrer-Policy"] = "no-referrer"
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
         respuesta.headers["X-Frame-Options"] = "DENY"
@@ -135,6 +183,110 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         mesa = app.state.mesas.obtener(mesa_id)
         mesa.escribir(x_token, mensaje.texto)
         return mesa.vista(x_token)
+
+    # --- Cuentas --------------------------------------------------------------------------
+
+    def con_sesion(respuesta: Response, usuario: Usuario, token: str) -> dict:
+        respuesta.set_cookie(COOKIE, token, max_age=30 * 24 * 3600, httponly=True,
+                             samesite="lax", secure=config.publico, path="/")
+        return {"usuario": {"nombre": usuario.nombre}}
+
+    def usuario_de(token: str | None) -> Usuario:
+        usuario = app.state.cuentas.usuario(token)
+        if usuario is None:
+            raise ErrorMesa("Tienes que iniciar sesión", 401)
+        return usuario
+
+    @app.get("/api/cuenta")
+    def cuenta(mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = app.state.cuentas.usuario(mus_sesion)
+        return {"usuario": {"nombre": usuario.nombre} if usuario else None}
+
+    @app.post("/api/cuenta/registro")
+    def registro(datos: Credenciales, respuesta: Response) -> dict:
+        return con_sesion(respuesta, *app.state.cuentas.registrar(datos.nombre, datos.clave))
+
+    @app.post("/api/cuenta/entrar")
+    def entrar(datos: Credenciales, respuesta: Response) -> dict:
+        return con_sesion(respuesta, *app.state.cuentas.entrar(datos.nombre, datos.clave))
+
+    @app.post("/api/cuenta/salir")
+    def salir(respuesta: Response, mus_sesion: str | None = Cookie(default=None)) -> dict:
+        app.state.cuentas.cerrar_sesion(mus_sesion)
+        respuesta.delete_cookie(COOKIE, path="/")
+        return {"usuario": None}
+
+    # --- Torneos privados -----------------------------------------------------------------
+
+    @app.post("/api/privados/vista-previa")
+    def vista_previa(datos: VistaPrevia) -> dict:
+        try:
+            f = Formato.desde_dict(datos.formato)
+            f.validar()
+        except (TypeError, ValueError) as e:
+            raise ErrorMesa(str(e) or "Formato no válido") from None
+        n = datos.parejas or f.max_parejas
+        return {"descripcion": describir(f, max(2, min(n, f.max_parejas)))}
+
+    @app.get("/api/privados")
+    def mis_privados(mus_sesion: str | None = Cookie(default=None)) -> dict:
+        return {"torneos": app.state.privados.lista(usuario_de(mus_sesion))}
+
+    @app.post("/api/privados")
+    def crear_privado(datos: NuevoPrivado,
+                      mus_sesion: str | None = Cookie(default=None)) -> dict:
+        codigo = app.state.privados.crear(usuario_de(mus_sesion), datos.nombre, datos.formato,
+                                          datos.fecha_limite)
+        return {"codigo": codigo}
+
+    @app.get("/api/privados/{codigo}")
+    def ver_privado(codigo: str, mus_sesion: str | None = Cookie(default=None)) -> dict:
+        return app.state.privados.ver(usuario_de(mus_sesion), codigo)
+
+    @app.post("/api/privados/{codigo}/parejas")
+    def inscribir(codigo: str, datos: NuevaPareja,
+                  mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.inscribir(usuario, codigo, datos.nombre, datos.companero)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/parejas/{pareja}/aceptar")
+    def aceptar(codigo: str, pareja: int,
+                mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.aceptar(usuario, codigo, pareja)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/parejas/{pareja}/retirar")
+    def retirar(codigo: str, pareja: int,
+                mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.retirar(usuario, codigo, pareja)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/empezar")
+    def empezar(codigo: str, mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.empezar(usuario, codigo)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/cancelar")
+    def cancelar(codigo: str, mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.cancelar(usuario, codigo)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/partidos/{partido}/entrar")
+    def entrar_partido(codigo: str, partido: int,
+                       mus_sesion: str | None = Cookie(default=None)) -> dict:
+        return app.state.privados.entrar(usuario_de(mus_sesion), codigo, partido)
+
+    @app.post("/api/privados/{codigo}/partidos/{partido}/ganador")
+    def dar_ganador(codigo: str, partido: int, datos: Ganador,
+                    mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.dar_ganador(usuario, codigo, partido, datos.pareja)
+        return app.state.privados.ver(usuario, codigo)
 
     # --- Torneos y clasificación ----------------------------------------------------------
 
