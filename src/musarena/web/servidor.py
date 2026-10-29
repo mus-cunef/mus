@@ -44,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     host = "0.0.0.0" if args.red else "127.0.0.1"
     url = f"http://localhost:{args.puerto}"
-    print(f"milloslo-mus (Mus Arena) en {url}")
+    print(f"millosolo-mus (Mus Arena) en {url}")
     if args.red:
         print(f"Desde otros dispositivos de la misma red: http://{ip_local()}:{args.puerto}")
     if not args.no_abrir:

@@ -468,9 +468,9 @@ def test_una_base_de_datos_antigua_recibe_las_columnas_nuevas(tmp_path):
 
 
 def test_solo_los_organizadores_crean_torneos(reloj):
-    config = Config(pausa_bots=0, carpeta_partidas="", organizadores=("Milloslo",))
+    config = Config(pausa_bots=0, carpeta_partidas="", organizadores=("Millosolo",))
     app = crear_app(config, GestorMesas(config), reloj=reloj)
-    yo = _usuario(app, "milloslo")  # sin distinguir mayúsculas
+    yo = _usuario(app, "millosolo")  # sin distinguir mayúsculas
     otro = _usuario(app, "Sara")
     assert yo.get("/api/cuenta").json()["usuario"]["organizador"] is True
     assert otro.get("/api/cuenta").json()["usuario"]["organizador"] is False
