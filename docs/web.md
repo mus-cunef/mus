@@ -1,4 +1,4 @@
-# La web de Mus Arena (milloslo-mus)
+# La web de Mus Arena (millosolo-mus)
 
 Jugar al mus desde el navegador, con humanos y bots en cualquier asiento, y lanzar torneos.
 

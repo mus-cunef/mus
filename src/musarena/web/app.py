@@ -53,7 +53,7 @@ from musarena.web.torneos import GestorTorneos
 #: Cookie con el código de la sesión.
 COOKIE = "mus_sesion"
 #: Nombre de la web publicada (el proyecto se sigue llamando Mus Arena).
-NOMBRE_WEB = "milloslo-mus"
+NOMBRE_WEB = "millosolo-mus"
 
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 
