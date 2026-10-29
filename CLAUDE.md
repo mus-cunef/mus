@@ -31,7 +31,7 @@ siempre el porqué de las decisiones.
 
 | Req | Requisito | Puntos | Estado |
 | --- | --- | --- | --- |
-| — | Juego por turnos **de 2 jugadores, validado por el profesor** | condición | Mus = 2 parejas: **confirmar que el profesor lo validó** |
+| — | Juego por turnos **de 2 jugadores, validado por el profesor** | condición | Confirmado: el profesor validó el mus (2 parejas) |
 | 1.1 | Lógica en librería Python instalable; partida completa desde código | 1.5 | Hecho |
 | 1.2 | Interfaz web: una persona juega una partida completa contra un bot | 1.0 | Hecho (`mus-web`) |
 | 1.3 | Web publicada en URL pública, sin instalar nada | 0.5 | Hecho: https://mus-81o1.onrender.com |
@@ -48,7 +48,8 @@ siempre el porqué de las decisiones.
 | C.3 | Tests automáticos en cada PR | 0.5 | Hecho |
 
 Uso de IA (enunciado, 5.8): permitido para código, tests y documentación, **solo con herramientas
-gratuitas o con licencia de la universidad**; todo tiene que poder explicarse en la defensa.
+gratuitas o con licencia de la universidad**; todo tiene que poder explicarse en la defensa. Confirmado: la
+licencia de la universidad cubre el uso de Claude.
 
 ## Arquitectura
 ```
@@ -168,7 +169,8 @@ Principios:
   el principio**: solo se manda la `Observation` de cada asiento, códigos secretos detrás del
   `#`, versión en cada jugada, chat como texto y límites (modo `MUS_PUBLICO=1`). Varios humanos
   desde distintos dispositivos, cada uno con su enlace. Tiene que ser **rápida e intuitiva y
-  sin fallos**: cada cambio en la web se prueba también en el navegador
+  sin fallos**. Los bots juegan a **velocidad media** (0,6 s por jugada) para que se entienda
+  lo que pasa. Cada cambio en la web se prueba también en el navegador
   (`tests/test_web_navegador.py`, con Playwright y el Chrome instalado) y se revisa con capturas.
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también
   entre bots de refuerzo. Las recompensas densas (`tantos`, `potencial`) no aportaron nada.

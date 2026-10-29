@@ -30,7 +30,7 @@ Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-
 - **Servidor:** FastAPI (`musarena/web/`). Reutiliza el motor, el registro de bots, el torneo y la
   grabación. La página es HTML, CSS y JavaScript sin compilar (`musarena/web/estaticos/`).
 - **Una mesa** guarda una `Match`. Cuando le toca a un bot, la mesa juega por él con una pequeña
-  pausa de 0,3 s para que se vea lo que hace. Cuando le toca a un humano,
+  pausa de 0,6 s (velocidad media) para que se entienda lo que hace. Cuando le toca a un humano,
   espera a que su navegador mande la jugada.
 - **El navegador pregunta** cada 0,25 s mientras juegan los bots y cada 2 s cuando le toca a la
   persona (no hace falta más). Al jugar, la respuesta ya trae la mesa actualizada.

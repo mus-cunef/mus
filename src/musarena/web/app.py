@@ -46,7 +46,7 @@ ESTATICOS = resources.files("musarena.web") / "estaticos"
 class NuevaMesa(BaseModel):
     asientos: list[str] = Field(min_length=4, max_length=4)
     mejor_de: int = 3
-    velocidad: str = "rapida"
+    velocidad: str = "normal"
     nombres: list[str | None] = Field(default_factory=list, max_length=4)
 
 

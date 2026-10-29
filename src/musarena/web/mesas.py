@@ -49,7 +49,8 @@ def limpiar_nombre(nombre: object) -> str | None:
     limpio = " ".join("".join(c for c in nombre if c.isprintable()).split())[:MAX_NOMBRE].strip()
     return limpio or None
 
-#: Velocidad de los bots: multiplica la pausa entre jugadas (``Config.pausa_bots``).
+#: Velocidad de los bots: multiplica la pausa entre jugadas (``Config.pausa_bots``). Por defecto
+#: "normal" (0,6 s por jugada): con menos, la gente no llega a ver qué ha hecho cada bot.
 VELOCIDADES: dict[str, float] = {"rapida": 0.5, "normal": 1.0, "lenta": 2.0}
 
 
@@ -92,7 +93,7 @@ class Mesa:
     mejor_de: int
     config: Config
     reloj: Callable[[], float] = time.monotonic
-    velocidad: str = "rapida"
+    velocidad: str = "normal"
     nombres: Sequence[str | None] = ()  # el nombre de cada humano (opcional)
     id: str = field(default_factory=lambda: secrets.token_urlsafe(9))
     seed: int = field(default_factory=lambda: random.SystemRandom().randrange(2**32))
@@ -223,7 +224,7 @@ class GestorMesas:
         self._mesas: dict[str, Mesa] = {}
         self._lock = threading.Lock()
 
-    def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "rapida",
+    def crear(self, tipos: Sequence[str], mejor_de: int = 3, velocidad: str = "normal",
               nombres: Sequence[str | None] = ()) -> Mesa:
         self.limpiar()
         with self._lock:
