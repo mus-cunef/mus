@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
     Engine,
@@ -106,6 +107,21 @@ partidos = Table(
     Column("acciones", JSON),  # jugadas hechas: con la semilla, la partida se reconstruye
     Column("listos", JSON),  # usuarios que ya le han dado a "Empezar" (con los 4, se juega)
     Column("actualizado", Float),
+)
+
+partidas_web = Table(
+    "partidas_web", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("mesa", String(40), nullable=False, unique=True),
+    Column("seed", BigInteger, nullable=False),
+    Column("mejor_de", Integer, nullable=False),
+    Column("jugadores", JSON, nullable=False),  # "humano" o el bot de cada asiento (sin nombres)
+    Column("acciones", JSON, nullable=False),
+    Column("terminada", Boolean, nullable=False, default=False),
+    Column("ganador", Integer),  # pareja del motor: 0 (asientos 0 y 2) o 1
+    Column("version", String(20)),
+    Column("creada", Float, nullable=False),
+    Column("actualizado", Float, nullable=False),
 )
 
 

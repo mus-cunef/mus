@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 from musarena import __version__
 from musarena.players import TIPOS
 from musarena.players.externos import es_bot_externo
+from musarena.web.archivo import ArchivoPartidas
 from musarena.web.bd import conectar
 from musarena.web.config import Config
 from musarena.web.cuentas import Cuentas, Usuario
@@ -132,6 +133,8 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     motor = conectar(config.bd)
     app.state.cuentas = Cuentas(motor, reloj)
     app.state.privados = Privados(motor, app.state.cuentas, app.state.mesas, config, reloj)
+    app.state.archivo = ArchivoPartidas(motor, reloj)
+    app.state.mesas.al_grabar = app.state.archivo.guardar
 
     @app.exception_handler(ErrorMesa)
     async def error_mesa(_: Request, e: ErrorMesa) -> JSONResponse:
