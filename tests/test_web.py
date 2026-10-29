@@ -58,6 +58,22 @@ def test_opciones_y_pagina(entorno):
     assert r.headers["Referrer-Policy"] == "no-referrer"
 
 
+def test_la_pagina_lleva_su_version(entorno):
+    """El JS y el CSS van con la versión en la dirección (la caché nunca mezcla versiones) y el
+    API la manda en cada respuesta (una pestaña abierta sabe si hay una nueva)."""
+    from musarena.web.app import version_pagina
+
+    cliente, *_ = entorno
+    version = version_pagina()
+    r = cliente.get("/")
+    assert r.headers["Cache-Control"] == "no-cache"
+    assert f'<meta name="mus-version" content="{version}">' in r.text
+    for nombre in ("app.js", "estilo.css"):
+        assert f"/estaticos/{nombre}?v={version}" in r.text
+        assert cliente.get(f"/estaticos/{nombre}?v={version}").status_code == 200
+    assert cliente.get("/api/opciones").headers["X-Mus-Version"] == version
+
+
 def test_reglas_y_clasificacion(entorno):
     cliente, *_ = entorno
     assert "Reglas del mus" in cliente.get("/api/reglas").text

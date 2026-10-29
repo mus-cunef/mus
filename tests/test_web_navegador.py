@@ -282,3 +282,25 @@ def test_torneo_privado_de_principio_a_fin(servidor, navegador):
     jugadores[0].click("text=Volver al torneo")
     jugadores[0].wait_for_selector(".campeon")
     assert errores == [], errores
+
+
+def test_aviso_de_version_nueva(servidor, pagina):
+    """Si se publica una versión nueva con la pestaña abierta, la página avisa para recargar."""
+    url, *_ = servidor
+    pagina.goto(url)
+    pagina.wait_for_selector("#vista-inicio")
+    assert pagina.locator("#version-nueva").count() == 0  # misma versión: sin aviso
+
+    def otra_version(ruta):
+        respuesta = ruta.fetch()
+        ruta.fulfill(response=respuesta, headers={**respuesta.headers, "x-mus-version": "nueva"})
+
+    pagina.route("**/api/**", otra_version)
+    pagina.goto(url + "/#/reglas")  # cualquier llamada al API
+    pagina.wait_for_selector("#version-nueva")
+    pagina.unroute("**/api/**")
+    pagina.get_by_role("button", name="Recargar").click()
+    pagina.wait_for_load_state()
+    pagina.wait_for_selector("#vista-inicio", state="attached")
+    assert pagina.locator("#version-nueva").count() == 0
+    assert not pagina.errores, pagina.errores

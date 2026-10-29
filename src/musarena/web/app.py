@@ -28,6 +28,7 @@ las que cambian algo tienen que llevar la cabecera ``X-Mus`` (otra web no puede 
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import urllib.request
@@ -35,7 +36,7 @@ from collections.abc import Callable
 from importlib import resources
 
 from fastapi import Cookie, FastAPI, Header, Request, Response
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -57,6 +58,30 @@ COOKIE = "mus_sesion"
 NOMBRE_WEB = "millosolo-mus"
 
 ESTATICOS = resources.files("musarena.web") / "estaticos"
+#: Archivos de la página que llevan la versión en su dirección.
+ARCHIVOS_PAGINA = ("app.js", "estilo.css")
+
+
+def version_pagina() -> str:
+    """Huella de la página (HTML, JS y CSS): cambia en cuanto cambia cualquiera de ellos."""
+    huella = hashlib.sha256()
+    for nombre in ("index.html", *ARCHIVOS_PAGINA):
+        huella.update((ESTATICOS / nombre).read_bytes())
+    return huella.hexdigest()[:12]
+
+
+def pagina(version: str) -> str:
+    """El HTML de la página con la versión en las direcciones del JS y el CSS.
+
+    Así el navegador nunca mezcla una página nueva con un ``app.js`` viejo de su caché: cada
+    versión tiene sus propias direcciones (``/estaticos/app.js?v=...``).
+    """
+    html = (ESTATICOS / "index.html").read_text(encoding="utf-8")
+    for nombre in ARCHIVOS_PAGINA:
+        ruta = f"/estaticos/{nombre}"
+        assert html.count(f'"{ruta}"') == 1, nombre
+        html = html.replace(f'"{ruta}"', f'"{ruta}?v={version}"')
+    return html.replace("<head>", f'<head>\n<meta name="mus-version" content="{version}">', 1)
 
 
 class NuevaMesa(BaseModel):
@@ -135,6 +160,10 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     app.state.privados = Privados(motor, app.state.cuentas, app.state.mesas, config, reloj)
     app.state.archivo = ArchivoPartidas(motor, reloj)
     app.state.mesas.al_grabar = app.state.archivo.guardar
+    # La versión de la página va en cada respuesta del API: si una pestaña abierta tiene otra,
+    # se ha publicado una versión nueva y la página avisa para recargar.
+    version = version_pagina()
+    html = pagina(version)
 
     @app.exception_handler(ErrorMesa)
     async def error_mesa(_: Request, e: ErrorMesa) -> JSONResponse:
@@ -153,6 +182,8 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         respuesta.headers["X-Frame-Options"] = "DENY"
         if request.url.path.startswith("/api/mesas"):
             respuesta.headers["Cache-Control"] = "no-store"
+        if request.url.path.startswith("/api/"):
+            respuesta.headers["X-Mus-Version"] = version
         return respuesta
 
     # --- Mesas ----------------------------------------------------------------------------
@@ -360,8 +391,9 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     # --- Página ---------------------------------------------------------------------------
 
     @app.get("/", include_in_schema=False)
-    def inicio() -> FileResponse:
-        return FileResponse(str(ESTATICOS / "index.html"))
+    def inicio() -> HTMLResponse:
+        # no-cache: el navegador pregunta siempre si hay página nueva.
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
     app.mount("/estaticos", StaticFiles(directory=str(ESTATICOS)), name="estaticos")
     return app

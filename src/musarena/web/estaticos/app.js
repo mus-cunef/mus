@@ -36,6 +36,7 @@ async function api(metodo, ruta, datos, token) {
   }
   if (token) opciones.headers["X-Token"] = token;
   const respuesta = await fetch(ruta, opciones);
+  comprobarVersion(respuesta.headers.get("X-Mus-Version"));
   const tipo = respuesta.headers.get("Content-Type") || "";
   const cuerpo = tipo.includes("application/json") ? await respuesta.json() : await respuesta.text();
   if (!respuesta.ok) {
@@ -44,6 +45,18 @@ async function api(metodo, ruta, datos, token) {
     throw error;
   }
   return cuerpo;
+}
+
+// Versión de esta página. Si el servidor responde con otra, se ha publicado una versión nueva
+// mientras la pestaña estaba abierta: se avisa para recargar (la partida y la sesión siguen
+// igual, porque están en el servidor y en el enlace).
+const VERSION = document.querySelector('meta[name="mus-version"]')?.content;
+
+function comprobarVersion(delServidor) {
+  if (!VERSION || !delServidor || delServidor === VERSION || $("#version-nueva")) return;
+  document.body.append(el("div", { id: "version-nueva", class: "version-nueva", role: "status" },
+    "Hay una versión nueva de la web.",
+    el("button", { class: "boton principal", onclick: () => location.reload() }, "Recargar")));
 }
 
 function explicarError(cuerpo, codigo) {

@@ -156,6 +156,14 @@ Plan gratuito: si nadie entra en 15 minutos se duerme y la siguiente visita tard
 (conviene abrirla un minuto antes de una demo). Las partidas grabadas allí se pierden en cada
 reinicio o publicación.
 
+**Versiones nuevas sin recargar a mano.** El JS y el CSS se piden con la versión en la dirección
+(`/estaticos/app.js?v=<huella>`, la huella de los archivos de la página) y la página principal
+va con `Cache-Control: no-cache`, así que el navegador nunca mezcla una página nueva con un
+`app.js` viejo de su caché. Además, cada respuesta del API lleva la cabecera `X-Mus-Version`: si
+alguien tiene la pestaña abierta mientras se publica una versión nueva, le sale el aviso «Hay
+una versión nueva de la web» con un botón para recargar (la partida y la sesión siguen, porque
+están en el servidor y en el enlace).
+
 **Base de datos de las cuentas y los torneos privados.** Sin `MUS_BD`, Render usaría un SQLite
 en su disco, que se borra al reiniciar: se perderían cuentas y torneos. Se usa una base
 PostgreSQL gratuita de [Neon](https://neon.tech) (no caduca; la de Render sí, a los 30 días):
