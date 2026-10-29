@@ -118,7 +118,7 @@ def test_registro_entrada_y_salida(app):
     c = _cliente(app)
     assert c.get("/api/cuenta").json() == {"usuario": None}
     r = c.post("/api/cuenta/registro", json={"nombre": "Pablo", "clave": CLAVE})
-    assert r.json() == {"usuario": {"nombre": "Pablo"}}
+    assert r.json() == {"usuario": {"nombre": "Pablo", "organizador": True}}
     cookie = r.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=lax" in cookie
     assert c.get("/api/cuenta").json()["usuario"]["nombre"] == "Pablo"
@@ -465,3 +465,25 @@ def test_una_base_de_datos_antigua_recibe_las_columnas_nuevas(tmp_path):
     assert {"listos", "acciones", "tokens"} <= columnas
     with motor.connect() as c:
         assert c.execute(text("SELECT estado FROM partidos")).scalar_one() == "listo"
+
+
+def test_solo_los_organizadores_crean_torneos(reloj):
+    config = Config(pausa_bots=0, carpeta_partidas="", organizadores=("Milloslo",))
+    app = crear_app(config, GestorMesas(config), reloj=reloj)
+    yo = _usuario(app, "milloslo")  # sin distinguir mayúsculas
+    otro = _usuario(app, "Sara")
+    assert yo.get("/api/cuenta").json()["usuario"]["organizador"] is True
+    assert otro.get("/api/cuenta").json()["usuario"]["organizador"] is False
+    codigo = _torneo(yo, reloj)
+    r = otro.post("/api/privados", json={"nombre": "x", "formato": {},
+                                         "fecha_limite": reloj.t + DIA})
+    assert r.status_code == 403
+    # Los demás sí se inscriben en el torneo del organizador.
+    _usuario(app, "Ines")
+    r = otro.post(f"/api/privados/{codigo}/parejas",
+                  json={"nombre": "Las dos", "companero": "Ines"})
+    assert r.status_code == 200
+
+
+def test_sin_lista_de_organizadores_crea_cualquiera(app):
+    assert _usuario(app, "Cualquiera").get("/api/cuenta").json()["usuario"]["organizador"] is True

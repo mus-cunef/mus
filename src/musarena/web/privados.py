@@ -105,9 +105,16 @@ class Privados:
 
     # --- Crear y listar -------------------------------------------------------------------
 
+    def puede_organizar(self, usuario: Usuario) -> bool:
+        """Si ``MUS_ORGANIZADORES`` dice quiénes crean torneos, solo ellos; si no, todos."""
+        permitidos = {n.lower() for n in self.config.organizadores}
+        return not permitidos or usuario.nombre.lower() in permitidos
+
     def crear(self, usuario: Usuario, nombre: object, formato: object,
               fecha_limite: object) -> str:
         """Crea un torneo y devuelve su código de invitación."""
+        if not self.puede_organizar(usuario):
+            raise ErrorMesa("En esta web solo el organizador puede crear torneos", 403)
         nombre = _texto(nombre, 60, "El nombre del torneo")
         if not isinstance(formato, dict):
             raise ErrorMesa("Falta el formato")

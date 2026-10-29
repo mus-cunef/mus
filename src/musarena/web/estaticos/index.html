@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mus Arena</title>
+<title>milloslo-mus</title>
 <link rel="icon" href="/estaticos/icono.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 </head>
 <body>
 <header class="barra">
-  <a class="marca" href="#/">Mus Arena</a>
+  <a class="marca" href="#/">milloslo-mus</a>
   <nav>
     <a href="#/" data-ruta="inicio">Jugar</a>
     <a href="#/torneos" data-ruta="torneos">Torneos</a>
@@ -125,6 +125,7 @@
       <h1>Torneos con amigos</h1>
       <p class="entradilla">Organiza un torneo privado: eliges el formato y la fecha límite, compartes el enlace y cada pareja se inscribe con sus cuentas.</p>
       <div id="mis-torneos"></div>
+      <p id="sin-permiso" class="tarjeta" hidden>En esta web los torneos los crea el organizador. Si te ha invitado, abre el enlace que te haya pasado.</p>
       <form id="form-privado" class="tarjeta">
         <h2>Nuevo torneo</h2>
         <label>Nombre del torneo <input id="privado-nombre" maxlength="60" required placeholder="Torneo de la peña"></label>

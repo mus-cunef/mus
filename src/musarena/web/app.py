@@ -52,6 +52,8 @@ from musarena.web.torneos import GestorTorneos
 
 #: Cookie con el código de la sesión.
 COOKIE = "mus_sesion"
+#: Nombre de la web publicada (el proyecto se sigue llamando Mus Arena).
+NOMBRE_WEB = "milloslo-mus"
 
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 
@@ -122,7 +124,7 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     """Crea la aplicación (los tests le pasan una configuración y gestores a medida, y
     ``reloj`` para controlar la hora de las cuentas y los torneos privados)."""
     config = config or Config.desde_entorno()
-    app = FastAPI(title="Mus Arena", version=__version__, docs_url="/api/docs",
+    app = FastAPI(title=NOMBRE_WEB, version=__version__, docs_url="/api/docs",
                   redoc_url=None)
     app.state.config = config
     app.state.mesas = mesas if mesas is not None else GestorMesas(config)
@@ -190,10 +192,14 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     # --- Cuentas --------------------------------------------------------------------------
 
+    def datos_usuario(usuario: Usuario) -> dict:
+        return {"nombre": usuario.nombre,
+                "organizador": app.state.privados.puede_organizar(usuario)}
+
     def con_sesion(respuesta: Response, usuario: Usuario, token: str) -> dict:
         respuesta.set_cookie(COOKIE, token, max_age=30 * 24 * 3600, httponly=True,
                              samesite="lax", secure=config.publico, path="/")
-        return {"usuario": {"nombre": usuario.nombre}}
+        return {"usuario": datos_usuario(usuario)}
 
     def usuario_de(token: str | None) -> Usuario:
         usuario = app.state.cuentas.usuario(token)
@@ -204,7 +210,7 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     @app.get("/api/cuenta")
     def cuenta(mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = app.state.cuentas.usuario(mus_sesion)
-        return {"usuario": {"nombre": usuario.nombre} if usuario else None}
+        return {"usuario": datos_usuario(usuario) if usuario else None}
 
     @app.post("/api/cuenta/registro")
     def registro(datos: Credenciales, respuesta: Response) -> dict:

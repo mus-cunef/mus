@@ -724,6 +724,8 @@ const Privados = {
 
   async abrir() {
     if (!(await Cuenta.exigir("Para organizar un torneo o ver los tuyos, entra o crea una cuenta."))) return;
+    $("#form-privado").hidden = !Cuenta.usuario.organizador;
+    $("#sin-permiso").hidden = Cuenta.usuario.organizador;
     const fechaInput = $("#privado-fecha");
     if (!fechaInput.value) {
       const d = new Date(Date.now() + 7 * 864e5);

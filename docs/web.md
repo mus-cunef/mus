@@ -1,4 +1,4 @@
-# La web de Mus Arena
+# La web de Mus Arena (milloslo-mus)
 
 Jugar al mus desde el navegador, con humanos y bots en cualquier asiento, y lanzar torneos.
 
@@ -56,7 +56,9 @@ Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-
 
 ## Cuentas y torneos privados
 
-En **Torneos** cualquiera con cuenta organiza un torneo para jugar con sus amigos:
+En **Torneos** se organiza un torneo para jugar con los amigos. Por defecto puede crearlo
+cualquiera con cuenta; con la variable `MUS_ORGANIZADORES` (nombres de usuario separados por
+comas) solo pueden crearlos esos usuarios, y los demás solo se inscriben con el enlace:
 
 1. **Crear.** Se elige el nombre, el número máximo de parejas (de 2 a 64), la fecha límite de
    inscripción y el **formato**:
@@ -143,8 +145,8 @@ viven en memoria, así que la web se arranca con **un solo proceso** (`mus-web` 
 
 Variables de entorno: `MUS_PUBLICO`, `MUS_MAX_MESAS`, `MUS_MINUTOS_INACTIVA`,
 `MUS_MAX_PARTIDAS_TORNEO`, `MUS_PROCESOS_TORNEO`, `MUS_PARTIDAS`, `MUS_BOTS`,
-`MUS_CLASIFICACION`, `MUS_CLASIFICACION_URL`, `MUS_REGLAS` y `MUS_BD` (ver
-`musarena/web/config.py`).
+`MUS_CLASIFICACION`, `MUS_CLASIFICACION_URL`, `MUS_REGLAS`, `MUS_BD` y `MUS_ORGANIZADORES`
+(ver `musarena/web/config.py`).
 
 ## API
 
