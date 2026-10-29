@@ -22,6 +22,15 @@ def _entero(nombre: str, defecto: int) -> int:
         return defecto
 
 
+def _url_bd(url: str) -> str:
+    """Los proveedores dan la URL como ``postgres://`` o ``postgresql://``; SQLAlchemy necesita
+    saber el controlador (psycopg 3)."""
+    for prefijo in ("postgres://", "postgresql://"):
+        if url.startswith(prefijo):
+            return "postgresql+psycopg://" + url[len(prefijo):]
+    return url
+
+
 @dataclass(frozen=True)
 class Config:
     publico: bool = False
@@ -48,6 +57,11 @@ class Config:
     clasificacion_url: str = ""
     #: Archivo con las reglas.
     reglas: str = "docs/reglas.md"
+    #: Base de datos de las cuentas y los torneos privados (URL de SQLAlchemy). En internet
+    #: tiene que ser externa (PostgreSQL), porque el disco del servidor se borra al reiniciar.
+    bd: str = "sqlite://"  # en memoria (tests); mus-web usa un archivo (desde_entorno)
+    #: Usuarios que pueden crear torneos privados (vacío = cualquiera con cuenta).
+    organizadores: tuple[str, ...] = ()
 
     @classmethod
     def desde_entorno(cls) -> Config:
@@ -64,6 +78,9 @@ class Config:
             clasificacion_url=os.environ.get(
                 "MUS_CLASIFICACION_URL", URL_CLASIFICACION if publico else ""),
             reglas=os.environ.get("MUS_REGLAS", "docs/reglas.md"),
+            bd=_url_bd(os.environ.get("MUS_BD", "sqlite:///mus_web.db")),
+            organizadores=tuple(n.strip() for n in os.environ.get("MUS_ORGANIZADORES", "")
+                                .split(",") if n.strip()),
         )
 
     def ruta(self, nombre: str) -> Path:

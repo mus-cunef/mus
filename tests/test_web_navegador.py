@@ -203,3 +203,82 @@ def test_torneo_clasificacion_y_reglas(servidor, pagina):
     pagina.goto(url + "/#/reglas")
     pagina.wait_for_selector("#reglas h1")
     assert pagina.errores == [], pagina.errores
+
+
+# --- Torneos privados ---
+
+
+def _nueva_persona(navegador, url, nombre, errores):
+    """Un navegador aparte (su propia cookie de sesión) con una cuenta recién creada."""
+    contexto = navegador.new_context()
+    p = contexto.new_page()
+    p.on("pageerror", lambda e: errores.append(str(e)))
+    p.on("dialog", lambda d: d.accept())  # confirmaciones ("¿Sortear…?")
+    p.goto(url)
+    p.wait_for_selector("#form-registro", state="visible")
+    p.fill("#registro-nombre", nombre)
+    p.fill("#registro-clave", "clave-larga-1")
+    p.click("#form-registro button[type=submit]")
+    p.wait_for_selector(f"#cuenta-barra .quien-soy:has-text('{nombre}')")
+    return p
+
+
+def test_torneo_privado_de_principio_a_fin(servidor, navegador):
+    url, _, _ = servidor
+    errores = []
+    org = _nueva_persona(navegador, url + "/#/torneos", "Organiza", errores)
+    org.wait_for_selector("#form-privado", state="visible")
+    org.fill("#privado-nombre", "Torneo de prueba")
+    org.check("#opciones-formato input[value=grupos]")
+    assert org.is_visible("#privado-tam-grupo")  # opciones de grupos solo con grupos
+    org.fill("#privado-parejas", "32")
+    org.wait_for_selector("#vista-previa:has-text('8 grupos de 4')")
+    org.check("#opciones-formato input[value=eliminatoria]")
+    assert not org.is_visible("#privado-tam-grupo")
+    org.click("#form-privado button[type=submit]")
+    enlace = org.inner_text(".invitacion code")
+    assert "#/t/" in enlace
+    # Dos parejas se inscriben desde el enlace: sin cuenta, el enlace lleva a crearla y vuelve.
+    jugadores = []
+    for i in range(2):
+        a = _nueva_persona(navegador, enlace, f"Ana{i}", errores)
+        b = _nueva_persona(navegador, enlace, f"Bea{i}", errores)
+        a.wait_for_selector("#form-pareja")
+        a.fill("#pareja-nombre", f"Pareja {i}")
+        a.fill("#pareja-companero", f"Bea{i}")
+        a.click("#form-pareja button[type=submit]")
+        a.wait_for_selector("text=Falta que")
+        b.reload()
+        b.click("button:has-text('Aceptar')")
+        b.wait_for_selector("text=Estás inscrito")
+        jugadores += [a, b]
+    org.reload()
+    org.click("button:has-text('Sortear y empezar ahora')")
+    org.wait_for_selector(".cuadro h3:has-text('Final')")
+    # Cada uno le da a «Empezar»; hasta que no le da el cuarto, nadie entra en la mesa.
+    for i, p in enumerate(jugadores):
+        p.reload()
+        p.click(".partido.mio button:has-text('Empezar')")
+        if i < 3:
+            p.wait_for_selector(".partido.mio .listo-ok")
+            p.wait_for_selector(f".partido.mio .sala:has-text('{i + 1}/4 listos')")
+            assert "/#/t/" in p.url
+    # Con el último, los cuatro entran solos en la misma mesa, cada uno en su asiento.
+    mesas = set()
+    for p in jugadores:
+        p.wait_for_url("**/#/mesa/**", timeout=10000)
+        nombre = p.inner_text("#cuenta-barra .quien-soy")
+        p.wait_for_selector(f"text=Tú ({nombre})")
+        mesas.add(p.url.split("#/mesa/")[1].split("/")[0])
+        assert p.eval_on_selector_all(".asiento-mesa:not(.abajo) .carta:not(.reverso)",
+                                      "els => els.length") == 0
+    assert len(mesas) == 1
+    # Una pareja no se presenta: el organizador da la final por ganada.
+    org.reload()
+    org.click("details.dar-ganador summary")
+    org.click("details.dar-ganador[open] button >> nth=0")
+    org.wait_for_selector(".campeon")
+    jugadores[0].wait_for_selector("text=Volver al torneo", timeout=10000)
+    jugadores[0].click("text=Volver al torneo")
+    jugadores[0].wait_for_selector(".campeon")
+    assert errores == [], errores

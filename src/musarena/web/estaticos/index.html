@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mus Arena</title>
+<title>milloslo-mus</title>
 <link rel="icon" href="/estaticos/icono.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,13 +12,15 @@
 </head>
 <body>
 <header class="barra">
-  <a class="marca" href="#/">Mus Arena</a>
+  <a class="marca" href="#/">milloslo-mus</a>
   <nav>
     <a href="#/" data-ruta="inicio">Jugar</a>
-    <a href="#/torneo" data-ruta="torneo">Torneo</a>
+    <a href="#/torneos" data-ruta="torneos">Torneos</a>
+    <a href="#/torneo" data-ruta="torneo">Torneo de bots</a>
     <a href="#/clasificacion" data-ruta="clasificacion">Clasificación</a>
     <a href="#/reglas" data-ruta="reglas">Reglas</a>
   </nav>
+  <div id="cuenta-barra" class="cuenta-barra"></div>
 </header>
 
 <main id="contenido">
@@ -89,6 +91,72 @@
       </aside>
     </div>
     <div class="resumen-mano" id="resumen-mano" hidden></div>
+  </section>
+
+  <!-- ENTRAR / CREAR CUENTA -->
+  <section id="vista-entrar" class="vista" hidden>
+    <div class="columna">
+      <h1>Tu cuenta</h1>
+      <p class="entradilla" id="motivo-entrar">Con una cuenta puedes organizar torneos privados e inscribirte con tu pareja.</p>
+      <div class="dos-columnas">
+        <form id="form-entrar" class="tarjeta">
+          <h2>Entrar</h2>
+          <label>Usuario <input id="entrar-nombre" autocomplete="username" maxlength="20" required></label>
+          <label>Contraseña <input id="entrar-clave" type="password" autocomplete="current-password" maxlength="128" required></label>
+          <button type="submit" class="boton principal">Entrar</button>
+          <p class="error" hidden></p>
+        </form>
+        <form id="form-registro" class="tarjeta">
+          <h2>Crear cuenta</h2>
+          <label>Usuario <small>3 a 20 letras o números, sin espacios</small>
+            <input id="registro-nombre" autocomplete="username" maxlength="20" minlength="3" required></label>
+          <label>Contraseña <small>8 caracteres como mínimo</small>
+            <input id="registro-clave" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+          <button type="submit" class="boton principal">Crear cuenta</button>
+          <p class="error" hidden></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- TORNEOS PRIVADOS: lista y crear -->
+  <section id="vista-torneos" class="vista" hidden>
+    <div class="columna">
+      <h1>Torneos con amigos</h1>
+      <p class="entradilla">Organiza un torneo privado: eliges el formato y la fecha límite, compartes el enlace y cada pareja se inscribe con sus cuentas.</p>
+      <div id="mis-torneos"></div>
+      <p id="sin-permiso" class="tarjeta" hidden>En esta web los torneos los crea el organizador. Si te ha invitado, abre el enlace que te haya pasado.</p>
+      <form id="form-privado" class="tarjeta">
+        <h2>Nuevo torneo</h2>
+        <label>Nombre del torneo <input id="privado-nombre" maxlength="60" required placeholder="Torneo de la peña"></label>
+        <fieldset>
+          <legend>Formato</legend>
+          <div class="opciones-formato" id="opciones-formato">
+            <label class="opcion"><input type="radio" name="tipo" value="auto" checked><span><strong>Automático</strong><small>Grupos si hay más de 16 parejas; si no, cuadro directo (octavos, cuartos o semifinales)</small></span></label>
+            <label class="opcion"><input type="radio" name="tipo" value="eliminatoria"><span><strong>Eliminatoria</strong><small>Cuadro directo: quien pierde, fuera</small></span></label>
+            <label class="opcion"><input type="radio" name="tipo" value="grupos"><span><strong>Grupos y cuadro</strong><small>Fase de grupos y los mejores pasan al cuadro</small></span></label>
+            <label class="opcion"><input type="radio" name="tipo" value="liga"><span><strong>Liga</strong><small>Todos contra todos; gana el primero de la tabla</small></span></label>
+          </div>
+        </fieldset>
+        <div class="rejilla-formato">
+          <label>Parejas como máximo <input id="privado-parejas" type="number" min="2" max="64" value="16" required></label>
+          <label>Fin de la inscripción <input id="privado-fecha" type="datetime-local" required></label>
+          <label class="solo-grupos">Parejas por grupo <input id="privado-tam-grupo" type="number" min="3" max="8" value="4"></label>
+          <label class="solo-grupos">Pasan de cada grupo <input id="privado-pasan" type="number" min="1" max="7" value="2"></label>
+          <label>Partidos al mejor de <select id="privado-mejor-de"><option value="3">3 vacas</option><option value="5">5 vacas</option></select></label>
+          <label class="no-liga">La final, al mejor de <select id="privado-mejor-de-final"><option value="3">3 vacas</option><option value="5">5 vacas</option></select></label>
+        </div>
+        <label class="casilla no-liga"><input id="privado-tercero" type="checkbox"> Partido por el tercer puesto</label>
+        <p class="vista-previa" id="vista-previa" aria-live="polite"></p>
+        <button type="submit" class="boton principal">Crear torneo</button>
+        <p class="error" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- UN TORNEO PRIVADO -->
+  <section id="vista-t" class="vista" hidden>
+    <div class="columna ancha" id="privado"></div>
   </section>
 
   <!-- TORNEO -->

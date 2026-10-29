@@ -16,8 +16,9 @@ dependencies = ["numpy>=1.24"]
 dev = ["pytest>=7", "ruff>=0.4", "httpx>=0.27"]
 # Solo para entrenar el bot inteligente (para jugar con él basta numpy).
 ia = ["torch>=2.2"]
-# La interfaz web (mus-web).
-web = ["fastapi>=0.110", "uvicorn>=0.29"]
+# La interfaz web (mus-web). SQLAlchemy y psycopg: cuentas y torneos privados (SQLite en local,
+# PostgreSQL en internet).
+web = ["fastapi>=0.110", "uvicorn>=0.29", "sqlalchemy>=2.0", "psycopg[binary]>=3.1"]
 # Pruebas de la web en un navegador de verdad (usa el Chrome instalado).
 e2e = ["playwright>=1.40"]
 # La documentación online (mkdocs serve / mkdocs build). MkDocs 2 rompe los plugins: se fija la 1.x.

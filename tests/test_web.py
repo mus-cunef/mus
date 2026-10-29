@@ -54,7 +54,7 @@ def test_opciones_y_pagina(entorno):
     tipos = [t["valor"] for t in cliente.get("/api/opciones").json()["tipos"]]
     assert {"humano", "inteligente", "reglas:agresivo", "bots/prudente.py"} <= set(tipos)
     r = cliente.get("/")
-    assert r.status_code == 200 and "Mus Arena" in r.text
+    assert r.status_code == 200 and "milloslo-mus" in r.text
     assert r.headers["Referrer-Policy"] == "no-referrer"
 
 
