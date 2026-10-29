@@ -108,7 +108,10 @@ Cómo está hecho (`musarena/web/`):
 
 ## Publicada en Render
 
-La web está en **https://mus-81o1.onrender.com** (servicio gratuito de [Render](https://render.com)), conectada al
+La primera versión estaba en `mus-81o1.onrender.com`; la actual (con la base de datos de Neon)
+es el servicio `millosolo-mus`.
+
+La web está en **https://millosolo-mus.onrender.com** (servicio gratuito de [Render](https://render.com)), conectada al
 repositorio: **cada fusión en `main` la vuelve a publicar sola**. Configuración del servicio
 (*Web Service*, creado a mano en el panel de Render):
 
@@ -120,7 +123,8 @@ repositorio: **cada fusión en `main` la vuelve a publicar sola**. Configuració
 | Build Command | `pip install ".[web]"` |
 | Start Command | `mus-web --red --no-abrir --puerto $PORT` |
 | Instance Type | Free |
-| Variables de entorno | `MUS_PUBLICO=1`, `PYTHON_VERSION=3.12.7`, `MUS_BD` (ver abajo) |
+| Name | `millosolo-mus` |
+| Variables de entorno | `MUS_PUBLICO=1`, `PYTHON_VERSION=3.12.7`, `MUS_BD` (base de Neon, ver abajo) y `MUS_ORGANIZADORES` (quién crea torneos privados) |
 
 Plan gratuito: si nadie entra en 15 minutos se duerme y la siguiente visita tarda unos 30-60 s
 (conviene abrirla un minuto antes de una demo). Las partidas grabadas allí se pierden en cada
