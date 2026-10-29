@@ -812,11 +812,16 @@ const Privados = {
 
 const Privado = {
   codigo: null, v: null, temporizador: null, firma: "",
+  // Partidos en los que he dado a "Empezar": cuando empiezan, se entra solo en la mesa.
+  esperando: new Set(),
 
   async abrir(codigo) {
     if (!codigo) { location.hash = "#/torneos"; return; }
     if (!(await Cuenta.exigir("Te han invitado a un torneo: entra o crea una cuenta para verlo e inscribirte."))) return;
-    if (codigo !== this.codigo) { this.codigo = codigo; this.v = null; this.firma = ""; $("#privado").replaceChildren(el("p", {}, "Cargando…")); }
+    if (codigo !== this.codigo) {
+      this.codigo = codigo; this.v = null; this.firma = ""; this.esperando.clear();
+      $("#privado").replaceChildren(el("p", {}, "Cargando…"));
+    }
     this.refrescar();
   },
 
@@ -832,9 +837,10 @@ const Privado = {
         el("a", { class: "boton principal", href: "#/torneos" }, "Ir a tus torneos"));
       return;
     }
-    // Mientras está vivo, se mira cada pocos segundos (inscripciones, resultados, cuadro).
+    // Mientras está vivo, se mira cada pocos segundos (inscripciones, resultados, cuadro); si
+    // estoy esperando a que empiece mi partido, más a menudo, para entrar enseguida.
     if (ruta().nombre === "t" && ["inscripcion", "en_curso"].includes(this.v.estado)) {
-      this.temporizador = setTimeout(() => this.refrescar(), 5000);
+      this.temporizador = setTimeout(() => this.refrescar(), this.esperando.size ? 1500 : 5000);
     }
   },
 
@@ -864,6 +870,15 @@ const Privado = {
   pareja(id) { return this.v.parejas.find((x) => x.id === id); },
 
   pintar(v) {
+    // El último en darle a "Empezar" arranca la partida: los que esperaban entran solos.
+    for (const p of v.partidos) {
+      if (p.mio && p.estado === "listo" && p.estoy_listo) this.esperando.add(p.id);
+      else if (p.mio && p.estado === "jugando" && this.esperando.has(p.id) && ruta().nombre === "t") {
+        this.esperando.clear();
+        this.jugar(p);
+        return;
+      } else this.esperando.delete(p.id);
+    }
     // Si nada ha cambiado no se rehace la página (no se pierde lo que se está escribiendo).
     const firma = JSON.stringify({ ...v, ahora: 0 });
     this.v = v;
@@ -1010,7 +1025,8 @@ const Privado = {
     const pie = [];
     if (p.estado === "terminado" && p.pase && p.a !== null && p.b !== null) pie.push(el("small", {}, "ganado sin jugar"));
     if (p.estado === "jugando") pie.push(el("small", { class: "en-juego" }, "jugándose ahora"));
-    if (p.puedo_jugar) pie.push(el("button", { class: "boton principal pequeno", type: "button", onclick: () => this.jugar(p) }, p.estado === "jugando" ? "Volver a la mesa" : "Jugar"));
+    if (p.mio && p.estado === "listo") pie.push(...this.salaDeEspera(p));
+    if (p.mio && p.estado === "jugando") pie.push(el("button", { class: "boton principal pequeno", type: "button", onclick: () => this.jugar(p) }, "Ir a la mesa"));
     if (v.organizo && v.estado === "en_curso" && (p.estado === "listo" || p.estado === "jugando") && !opciones.sinOrganizar) {
       pie.push(el("details", { class: "dar-ganador" }, el("summary", {}, "No se presentan"),
         [p.a, p.b].map((id) => el("button", { class: "boton pequeno", type: "button",
@@ -1018,6 +1034,24 @@ const Privado = {
     }
     return el("div", { class: `partido${p.mio ? " mio" : ""}` }, lado(p.a, p.vacas[0]), lado(p.b, p.vacas[1]),
       pie.length ? el("div", { class: "pie-partido" }, pie) : null);
+  },
+
+  // Antes de jugar, cada uno de los cuatro le da a "Empezar"; la partida empieza con el último.
+  salaDeEspera(p) {
+    const faltan = p.faltan.length;
+    const estado = el("span", { class: "sala" }, el("strong", {}, `${p.listos.length}/4 listos`),
+      faltan ? ` · falta${faltan > 1 ? "n" : ""} ${p.faltan.join(", ")}` : "");
+    if (p.estoy_listo) {
+      return [el("span", { class: "listo-ok" }, "✓ Estás listo"), estado,
+        el("button", { class: "boton pequeno", type: "button", onclick: () => this.accion("POST", `/partidos/${p.id}/listo`, { listo: false }) }, "Aún no")];
+    }
+    return [el("button", { class: "boton principal pequeno", type: "button", onclick: () => this.empezar(p) }, "Empezar"), estado];
+  },
+
+  async empezar(p) {
+    this.esperando.add(p.id);
+    await this.accion("POST", `/partidos/${p.id}/listo`, {});
+    this.refrescar();  // vuelve a programar las consultas, ahora más seguidas
   },
 
   async jugar(p) {
@@ -1036,7 +1070,7 @@ const Privado = {
     const texto = eliminada ? "No te queda ningún partido: puedes seguir el torneo desde aquí."
       : "Ahora no tienes ningún partido pendiente: espera a que se decida tu rival.";
     return el("div", { class: `tarjeta${mios.length ? " destacada" : ""}` }, el("h2", {}, "Tus partidos"),
-      mios.length ? [el("p", {}, "Quedad los cuatro y entrad con vuestra cuenta: cada uno juega desde su dispositivo y la mesa espera a quien le toque."),
+      mios.length ? [el("p", {}, "Cuando estéis los cuatro, cada uno le da a «Empezar» desde su dispositivo. La partida empieza cuando le da el último, y entráis todos solos a la mesa."),
         el("div", { class: "partidos-lista" }, mios.map((p) => this.partido(p, { sinOrganizar: true })))] : el("p", {}, texto));
   },
 

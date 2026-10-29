@@ -77,9 +77,18 @@ def _ver(cliente, codigo):
     return r.json()
 
 
+def _empezar(codigo: str, partido: dict, clientes) -> None:
+    """Los cuatro jugadores le dan a "Empezar"."""
+    for cliente in clientes:
+        r = cliente.post(f"/api/privados/{codigo}/partidos/{partido['id']}/listo", json={})
+        assert r.status_code == 200, r.text
+
+
 def _jugar_partido(codigo: str, partido: dict, de_pareja: dict, rng: random.Random) -> None:
     """Los cuatro jugadores juegan el partido entero, cada uno desde su sesión."""
     mesas = {}
+    _empezar(codigo, partido, [c for pareja in (partido["a"], partido["b"])
+                               for c in de_pareja[pareja][:2]])
     for pareja in (partido["a"], partido["b"]):
         for cliente in de_pareja[pareja][:2]:
             r = cliente.post(f"/api/privados/{codigo}/partidos/{partido['id']}/entrar")
@@ -300,6 +309,9 @@ def test_solo_juegan_los_del_partido_y_cada_uno_en_su_asiento(app, reloj):
     org.post(f"/api/privados/{codigo}/empezar")
     partido = _ver(org, codigo)["partidos"][0]
     assert org.post(f"/api/privados/{codigo}/partidos/{partido['id']}/entrar").status_code == 403
+    assert org.post(f"/api/privados/{codigo}/partidos/{partido['id']}/listo",
+                    json={}).status_code == 403
+    _empezar(codigo, partido, [c for a, b, _ in inscritas for c in (a, b)])
     asientos = {}
     for a, b, _ in inscritas:
         for cliente in (a, b):
@@ -319,6 +331,7 @@ def test_la_mesa_se_reconstruye_tras_un_reinicio(app, reloj, tmp_path):
     org.post(f"/api/privados/{codigo}/empezar")
     partido = _ver(org, codigo)["partidos"][0]
     a = inscritas[0][0]
+    _empezar(codigo, partido, [c for x, y, _ in inscritas for c in (x, y)])
     d = a.post(f"/api/privados/{codigo}/partidos/{partido['id']}/entrar").json()
     # Se juegan unas cuantas jugadas.
     jugadores = {}
@@ -398,3 +411,57 @@ def test_mis_torneos_y_cancelar(app, reloj):
     assert a.post(f"/api/privados/{codigo}/cancelar").status_code == 403
     assert org.post(f"/api/privados/{codigo}/cancelar").status_code == 200
     assert _ver(a, codigo)["estado"] == "cancelado"
+
+
+def test_la_partida_empieza_cuando_los_cuatro_le_dan_a_empezar(app, reloj):
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    inscritas = _inscribir(app, codigo, 2)
+    org.post(f"/api/privados/{codigo}/empezar")
+    partido = _ver(org, codigo)["partidos"][0]
+    ruta = f"/api/privados/{codigo}/partidos/{partido['id']}"
+    a_es = next(p for p in inscritas if p[2] == partido["a"])
+    b_es = next(p for p in inscritas if p[2] == partido["b"])
+    orden = [a_es[0], b_es[0], a_es[1], b_es[1]]  # el orden de los asientos
+    nombres = ["j0a", "j1a", "j0b", "j1b"] if a_es[2] == inscritas[0][2] else \
+        ["j1a", "j0a", "j1b", "j0b"]
+    # Antes de que le den los cuatro no hay mesa.
+    assert orden[0].post(f"{ruta}/entrar").status_code == 409
+    for i, cliente in enumerate(orden[:3]):
+        v = cliente.post(f"{ruta}/listo", json={}).json()
+        p = next(x for x in v["partidos"] if x["id"] == partido["id"])
+        assert p["estado"] == "listo" and p["estoy_listo"] is True
+        assert set(p["listos"]) == set(nombres[: i + 1])
+        assert set(p["faltan"]) == set(nombres[i + 1:])
+        assert cliente.post(f"{ruta}/entrar").status_code == 409
+    # Uno se echa atrás y vuelve: sigue faltando el cuarto.
+    v = orden[1].post(f"{ruta}/listo", json={"listo": False}).json()
+    faltan = next(x for x in v["partidos"] if x["id"] == partido["id"])["faltan"]
+    assert set(faltan) == {nombres[1], nombres[3]}
+    orden[1].post(f"{ruta}/listo", json={})
+    # El último en darle: empieza.
+    v = orden[3].post(f"{ruta}/listo", json={}).json()
+    assert next(x for x in v["partidos"] if x["id"] == partido["id"])["estado"] == "jugando"
+    mesas = {c.post(f"{ruta}/entrar").json()["mesa"] for c in orden}
+    assert len(mesas) == 1
+    # Darle otra vez con la partida empezada no hace nada.
+    assert orden[0].post(f"{ruta}/listo", json={}).status_code == 200
+
+
+def test_una_base_de_datos_antigua_recibe_las_columnas_nuevas(tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+
+    from musarena.web.bd import conectar
+
+    url = f"sqlite:///{tmp_path / 'vieja.db'}"
+    vieja = create_engine(url)
+    with vieja.begin() as c:
+        c.execute(text("CREATE TABLE partidos (id INTEGER PRIMARY KEY, torneo INTEGER, "
+                       "fase VARCHAR(10), mejor_de INTEGER, estado VARCHAR(10))"))
+        c.execute(text("INSERT INTO partidos VALUES (1, 1, 'liga', 3, 'listo')"))
+    vieja.dispose()
+    motor = conectar(url)
+    columnas = {c["name"] for c in inspect(motor).get_columns("partidos")}
+    assert {"listos", "acciones", "tokens"} <= columnas
+    with motor.connect() as c:
+        assert c.execute(text("SELECT estado FROM partidos")).scalar_one() == "listo"

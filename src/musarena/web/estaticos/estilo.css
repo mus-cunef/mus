@@ -245,3 +245,6 @@ table.datos tr.pasa td:first-child { box-shadow: inset 4px 0 0 var(--bastos); }
 .ronda { display: flex; flex-direction: column; min-width: 210px; flex: 1 0 210px; }
 .partidos-ronda { display: flex; flex-direction: column; justify-content: space-around; gap: .6rem; flex: 1; }
 .tercero { margin-top: 1rem; max-width: 260px; }
+.pie-partido .sala { font-size: .9rem; color: var(--tinta-suave); }
+.pie-partido .sala strong { color: var(--tinta); }
+.pie-partido .listo-ok { color: var(--bastos); font-weight: 800; }

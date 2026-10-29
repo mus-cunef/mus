@@ -11,7 +11,9 @@ Cómo funciona un torneo:
 3. **Sorteo.** Al llegar la fecha límite (o antes, si el organizador lo decide) se sortea con las
    parejas confirmadas: grupos, liga o cuadro, según el formato.
 4. **Jugar.** Cada partido tiene su mesa: la pareja A en los asientos 0 y 2 y la B en el 1 y el 3.
-   Cada jugador entra con su sesión (no hay enlaces que se puedan pasar a otro). La mesa guarda
+   Cada jugador le da a **Empezar** cuando está preparado; la partida empieza cuando le han
+   dado los cuatro, y entonces todos entran a la vez en la mesa. Cada uno entra con su sesión
+   (no hay enlaces que se puedan pasar a otro). La mesa guarda
    cada jugada en la base de datos; al terminar, el resultado se apunta solo (nadie lo puede
    falsear) y el ganador avanza. El organizador puede dar un partido por ganado si una pareja no
    se presenta.
@@ -248,34 +250,53 @@ class Privados:
             a_gana = pareja_id == p.pareja_a
             c.execute(update(partidos).where(partidos.c.id == p.id).values(
                 estado="terminado", ganador=pareja_id, pase=True, mesa=None, tokens=None,
+                listos=None,
                 vacas_a=gana if a_gana else 0, vacas_b=0 if a_gana else gana,
                 actualizado=self.reloj()))
             self._avanzar(c, t)
 
     # --- Jugar ----------------------------------------------------------------------------
 
+    def marcar_listo(self, usuario: Usuario, codigo: str, partido_id: int,
+                     listo: bool = True) -> None:
+        """Un jugador le da a "Empezar" (o se echa atrás). Cuando están los cuatro, se crea la
+        mesa y empieza la partida."""
+        with self._lock, self.motor.begin() as c:
+            t = self._torneo(c, codigo)
+            if t.estado != "en_curso":
+                raise ErrorMesa("El torneo no está en juego", 409)
+            p = self._partido(c, t, partido_id)
+            if p.estado == "jugando":
+                return  # ya ha empezado
+            if p.estado != "listo":
+                raise ErrorMesa("Este partido no se puede jugar ahora", 409)
+            asientos = self._asientos(c, p)
+            if usuario.id not in asientos:
+                raise ErrorMesa("No juegas este partido", 403)
+            listos = set(p.listos or [])
+            if listo:
+                listos.add(usuario.id)
+            else:
+                listos.discard(usuario.id)
+            valores: dict[str, Any] = {"listos": sorted(listos)}
+            if listos >= set(asientos):  # el último en darle: empieza la partida
+                valores.update(estado="jugando", mesa=secrets.token_urlsafe(9),
+                               tokens={a: secrets.token_urlsafe(16) for a in range(4)},
+                               acciones=[], semilla=random.SystemRandom().randrange(2**32),
+                               actualizado=self.reloj())
+            c.execute(update(partidos).where(partidos.c.id == p.id).values(**valores))
+
     def entrar(self, usuario: Usuario, codigo: str, partido_id: int) -> dict:
-        """Mesa y código de asiento de un jugador para su partido (la crea si hace falta)."""
-        with self._lock:
-            with self.motor.begin() as c:
-                t = self._torneo(c, codigo)
-                if t.estado != "en_curso":
-                    raise ErrorMesa("El torneo no está en juego", 409)
-                p = self._partido(c, t, partido_id)
-                if p.estado not in ("listo", "jugando"):
-                    raise ErrorMesa("Este partido no se puede jugar ahora", 409)
-                asientos = self._asientos(c, p)
-                if usuario.id not in asientos:
-                    raise ErrorMesa("No juegas este partido", 403)
-                if p.mesa is None:
-                    mesa_id = secrets.token_urlsafe(9)
-                    tokens = {a: secrets.token_urlsafe(16) for a in range(4)}
-                    c.execute(update(partidos).where(partidos.c.id == p.id).values(
-                        estado="jugando", mesa=mesa_id, tokens=tokens, acciones=[],
-                        semilla=random.SystemRandom().randrange(2**32),
-                        actualizado=self.reloj()))
-                    p = self._partido(c, t, partido_id)
-            mesa = self.mesas.obtener(p.mesa)
+        """Mesa y código de asiento de un jugador para su partido ya empezado."""
+        with self.motor.connect() as c:
+            t = self._torneo(c, codigo)
+            p = self._partido(c, t, partido_id)
+            asientos = self._asientos(c, p) if p.pareja_a and p.pareja_b else []
+        if usuario.id not in asientos:
+            raise ErrorMesa("No juegas este partido", 403)
+        if p.estado != "jugando" or p.mesa is None:
+            raise ErrorMesa("La partida empieza cuando los cuatro le hayáis dado a Empezar", 409)
+        mesa = self.mesas.obtener(p.mesa)
         asiento = asientos.index(usuario.id)
         return {"mesa": mesa.id, "token": mesa.tokens[asiento], "asiento": asiento}
 
@@ -516,6 +537,7 @@ class Privados:
             ids_usuarios = {t.organizador} | {u for p in filas for u in (p.jugador1, p.jugador2)}
             nombre_de = dict(c.execute(select(usuarios.c.id, usuarios.c.nombre).where(
                 usuarios.c.id.in_(ids_usuarios))).all())
+        jugadores = {p.id: (p.jugador1, p.jugador2) for p in filas}
         organizo = t.organizador == usuario.id
         mia = next((p for p in filas if usuario.id in (p.jugador1, p.jugador2)), None)
         # Las parejas sin confirmar solo las ven sus jugadores y el organizador.
@@ -537,7 +559,8 @@ class Privados:
                          "invitado_yo": p.jugador2 == usuario.id and not p.confirmada,
                          "grupo": p.grupo} for p in visibles],
             "campeon": t.campeon,
-            "partidos": [self._partido_a_dict(p, mia) for p in todos],
+            "partidos": [self._partido_a_dict(p, mia, usuario, jugadores, nombre_de)
+                         for p in todos],
         }
         if resuelto is not None:
             datos.update(self._tablas(resuelto, filas, todos))
@@ -545,14 +568,22 @@ class Privados:
         return datos
 
     @staticmethod
-    def _partido_a_dict(p, mia) -> dict:
+    def _partido_a_dict(p, mia, usuario: Usuario, jugadores: dict, nombre_de: dict) -> dict:
         mio = mia is not None and mia.id in (p.pareja_a, p.pareja_b)
-        return {"id": p.id, "fase": p.fase, "grupo": p.grupo, "jornada": p.jornada,
-                "ronda": p.ronda, "posicion": p.posicion, "a": p.pareja_a, "b": p.pareja_b,
-                "estado": p.estado, "ganador": p.ganador, "pase": p.pase,
-                "vacas": [p.vacas_a, p.vacas_b], "tantos": [p.tantos_a, p.tantos_b],
-                "mejor_de": p.mejor_de, "mio": mio,
-                "puedo_jugar": mio and p.estado in ("listo", "jugando")}
+        datos = {"id": p.id, "fase": p.fase, "grupo": p.grupo, "jornada": p.jornada,
+                 "ronda": p.ronda, "posicion": p.posicion, "a": p.pareja_a, "b": p.pareja_b,
+                 "estado": p.estado, "ganador": p.ganador, "pase": p.pase,
+                 "vacas": [p.vacas_a, p.vacas_b], "tantos": [p.tantos_a, p.tantos_b],
+                 "mejor_de": p.mejor_de, "mio": mio,
+                 "puedo_jugar": mio and p.estado in ("listo", "jugando")}
+        if p.estado == "listo":
+            # Quién le ha dado ya a "Empezar" y a quién se espera (en el orden de los asientos).
+            todos = [u for pareja in (p.pareja_a, p.pareja_b) for u in jugadores.get(pareja, ())]
+            listos = set(p.listos or [])
+            datos.update(listos=[nombre_de[u] for u in todos if u in listos],
+                         faltan=[nombre_de[u] for u in todos if u not in listos],
+                         estoy_listo=usuario.id in listos)
+        return datos
 
     def _tablas(self, f: Formato, filas, todos) -> dict:
         """Grupos (con su tabla), liga y cuadro por rondas."""

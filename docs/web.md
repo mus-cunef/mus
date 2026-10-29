@@ -77,8 +77,10 @@ En **Torneos** cualquiera con cuenta organiza un torneo para jugar con sus amigo
    2, las mejores cabezas de serie pasan directamente a la segunda ronda (con 12 parejas, el
    cuadro es de 16 con 4 pases). Después de los grupos, los primeros se cruzan con segundos de
    otros grupos y, si se puede, nunca con uno de su grupo en la primera ronda.
-5. **Jugar.** Cada pareja ve sus partidos con un botón **Jugar**: los cuatro entran en la misma
-   mesa con su cuenta (la pareja A en los asientos 1 y 3). El resultado lo apunta la web al
+5. **Jugar.** Cada jugador ve sus partidos con un botón **Empezar**. La página dice quién está
+   listo y a quién se espera. La partida empieza cuando le da **el cuarto**, y en ese momento
+   los cuatro entran solos en la misma mesa con su cuenta (la pareja A en los asientos 1 y 3).
+   Quien se haya equivocado puede echarse atrás («Aún no») mientras falte alguien. El resultado lo apunta la web al
    terminar la partida, y el ganador avanza solo. Si una pareja no se presenta, el organizador
    da el partido por ganado.
 6. **Seguirlo.** Tablas de grupos o de liga (desempates: partidos ganados, diferencia de vacas y

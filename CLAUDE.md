@@ -178,8 +178,9 @@ Principios:
 - **Torneos privados (web)**: cuentas con contraseña (scrypt) y sesión en cookie `HttpOnly`;
   el organizador elige el formato (automático: grupos si hay más de 16 parejas; si no, cuadro
   directo con pases para las mejores cabezas de serie), la fecha límite y comparte un enlace
-  con código. Las parejas se inscriben con la cuenta del compañero, que acepta. Los partidos se
-  juegan en la mesa normal con las cuatro cuentas; **cada jugada se guarda en la base de datos**
+  con código. Las parejas se inscriben con la cuenta del compañero, que acepta. Cada partido
+  empieza cuando **los cuatro le han dado a «Empezar»** (entran solos a la mesa) y se juega en
+  la mesa normal con las cuatro cuentas; **cada jugada se guarda en la base de datos**
   y la mesa se reconstruye tras un reinicio. En Render hace falta una base PostgreSQL externa
   (`MUS_BD`, Neon gratis), porque su disco se borra al reiniciar.
 - **Recompensa del refuerzo**: `vaca+farol` con premio 0,2. Es la que más gana, también

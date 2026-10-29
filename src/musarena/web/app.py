@@ -102,6 +102,10 @@ class Ganador(BaseModel):
     pareja: int
 
 
+class Listo(BaseModel):
+    listo: bool = True
+
+
 def _descripcion(tipo: str) -> str:
     if tipo == "humano":
         return "Una persona desde su navegador"
@@ -274,6 +278,13 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     def cancelar(codigo: str, mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = usuario_de(mus_sesion)
         app.state.privados.cancelar(usuario, codigo)
+        return app.state.privados.ver(usuario, codigo)
+
+    @app.post("/api/privados/{codigo}/partidos/{partido}/listo")
+    def marcar_listo(codigo: str, partido: int, datos: Listo,
+                     mus_sesion: str | None = Cookie(default=None)) -> dict:
+        usuario = usuario_de(mus_sesion)
+        app.state.privados.marcar_listo(usuario, codigo, partido, datos.listo)
         return app.state.privados.ver(usuario, codigo)
 
     @app.post("/api/privados/{codigo}/partidos/{partido}/entrar")

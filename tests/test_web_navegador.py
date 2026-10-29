@@ -255,12 +255,18 @@ def test_torneo_privado_de_principio_a_fin(servidor, navegador):
     org.reload()
     org.click("button:has-text('Sortear y empezar ahora')")
     org.wait_for_selector(".cuadro h3:has-text('Final')")
-    # Los cuatro entran en la misma mesa, cada uno en su asiento.
+    # Cada uno le da a «Empezar»; hasta que no le da el cuarto, nadie entra en la mesa.
+    for i, p in enumerate(jugadores):
+        p.reload()
+        p.click(".partido.mio button:has-text('Empezar')")
+        if i < 3:
+            p.wait_for_selector(".partido.mio .listo-ok")
+            p.wait_for_selector(f".partido.mio .sala:has-text('{i + 1}/4 listos')")
+            assert "/#/t/" in p.url
+    # Con el último, los cuatro entran solos en la misma mesa, cada uno en su asiento.
     mesas = set()
     for p in jugadores:
-        p.reload()
-        p.click(".partido.mio .pie-partido button.principal")  # «Jugar» o «Volver a la mesa»
-        p.wait_for_url("**/#/mesa/**")
+        p.wait_for_url("**/#/mesa/**", timeout=10000)
         nombre = p.inner_text("#cuenta-barra .quien-soy")
         p.wait_for_selector(f"text=Tú ({nombre})")
         mesas.add(p.url.split("#/mesa/")[1].split("/")[0])

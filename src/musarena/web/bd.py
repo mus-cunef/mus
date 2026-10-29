@@ -27,6 +27,8 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     event,
+    inspect,
+    text,
 )
 from sqlalchemy.pool import StaticPool
 
@@ -102,6 +104,7 @@ partidos = Table(
     Column("mesa", String(40)),  # id de la mesa mientras se juega
     Column("tokens", JSON),  # código de cada asiento de esa mesa
     Column("acciones", JSON),  # jugadas hechas: con la semilla, la partida se reconstruye
+    Column("listos", JSON),  # usuarios que ya le han dado a "Empezar" (con los 4, se juega)
     Column("actualizado", Float),
 )
 
@@ -120,4 +123,18 @@ def conectar(url: str) -> Engine:
     else:
         motor = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
     metadata.create_all(motor)
+    _anadir_columnas(motor)
     return motor
+
+
+def _anadir_columnas(motor: Engine) -> None:
+    """Añade a una base de datos ya creada las columnas nuevas de las tablas (siempre
+    opcionales), para no perder los datos al actualizar la web."""
+    inspector = inspect(motor)
+    with motor.begin() as c:
+        for tabla in metadata.sorted_tables:
+            existentes = {col["name"] for col in inspector.get_columns(tabla.name)}
+            for columna in tabla.columns:
+                if columna.name not in existentes and columna.nullable:
+                    tipo = columna.type.compile(dialect=motor.dialect)
+                    c.execute(text(f'ALTER TABLE {tabla.name} ADD COLUMN "{columna.name}" {tipo}'))
