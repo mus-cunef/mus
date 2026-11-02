@@ -39,6 +39,7 @@ from pathlib import Path
 from musarena.arena import ResultadoArena, enfrentar, fabrica
 from musarena.players import BOTS, OPCIONES
 from musarena.players.externos import buscar_bots, es_bot_externo, nombre_externo
+from musarena.vigilancia import cerrar_cajas
 
 #: Recibe (partidas jugadas, partidas totales) cada vez que termina un trozo del torneo.
 Progreso = Callable[[int, int], None]
@@ -289,8 +290,11 @@ def jugar_torneo(
             al_progreso(hechas, total)
 
     if procesos == 1:
-        for tarea in tareas:
-            anotar(*_trozo(tarea))
+        try:
+            for tarea in tareas:
+                anotar(*_trozo(tarea))
+        finally:
+            cerrar_cajas()  # los procesos de los bots no se quedan esperando (en la web)
     else:
         with ProcessPoolExecutor(procesos) as ex:
             for futuro in as_completed([ex.submit(_trozo, t) for t in tareas]):

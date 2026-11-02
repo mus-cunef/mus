@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import pickle
 import random
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -32,8 +33,7 @@ from musarena.player import Player
 from musarena.players import BOTS, crear_jugador, es_tipo_valido
 from musarena.players.externos import cargar_clase, crear_externo, es_bot_externo
 from musarena.state import pareja
-from musarena.vigilancia import FaltaDeBot
-from musarena.vigilancia import vigilar as _vigilar
+from musarena.vigilancia import Caja, FaltaDeBot, JugadorVigilado, devolver_caja, tomar_caja
 
 
 @dataclass(frozen=True)
@@ -134,8 +134,14 @@ def enfrentar(
     :mod:`musarena.vigilancia`); las faltas se cuentan en el resultado.
     """
     if vigilar:  # hasta cargar el bot se vigila: un archivo roto también es una falta
-        crear = {k: _vigilar(partial(_crear_de, tipo) if isinstance(tipo, str) else fabrica(tipo),
-                             limite_segundos) for k, tipo in (("a", tipo_a), ("b", tipo_b))}
+        crear = {k: partial(_crear_de, tipo) if isinstance(tipo, str) else fabrica(tipo)
+                 for k, tipo in (("a", tipo_a), ("b", tipo_b))}
+        for receta in crear.values():
+            try:
+                pickle.dumps(receta)
+            except Exception as e:
+                raise ValueError("Con vigilancia, cada bot juega en otro proceso: la fábrica "
+                                 "tiene que poder enviarse (no valen lambdas)") from e
     else:
         crear = {"a": fabrica(tipo_a), "b": fabrica(tipo_b)}
     nombres = [t if isinstance(t, str) else getattr(t, "__name__", "bot") for t in (tipo_a, tipo_b)]
@@ -157,11 +163,23 @@ def enfrentar(
                               sum(r.victorias_a for r in res), sum(r.vacas_a for r in res),
                               sum(r.vacas_b for r in res), sum(r.faltas_a for r in res),
                               sum(r.faltas_b for r in res), tuple(motivos_a), tuple(motivos_b))
+    cajas = [tomar_caja(), tomar_caja()] if vigilar else []  # una por pareja
+    try:
+        return _jugar(crear, nombres, partidas, mejor_de, seed, cajas, limite_segundos)
+    finally:
+        for caja in cajas:
+            devolver_caja(caja)
+
+
+def _jugar(crear: dict[str, Fabrica], nombres: list[str], partidas: int, mejor_de: int,
+           seed: int, cajas: list[Caja], limite_segundos: float | None) -> ResultadoArena:
+    """El bucle de :func:`enfrentar` en un solo proceso (con ``cajas``, vigilado)."""
     semillas = random.Random(seed)
     victorias_a = vacas_a = vacas_b = 0
     faltas = {"a": 0, "b": 0}
     motivos: dict[str, list[str]] = {"a": [], "b": []}
     semilla_reparto = 0
+    colgados: dict[str, str] = {}  # un bot que se cuelga al crearse no se vuelve a intentar
     for i in range(partidas):
         a_en_pareja_0 = i % 2 == 0
         if a_en_pareja_0:
@@ -172,15 +190,27 @@ def enfrentar(
         culpable = None  # pareja del bot que comete una falta
         for asiento in range(4):
             es_a = (pareja(asiento) == 0) == a_en_pareja_0
+            k = "a" if es_a else "b"
+            receta, semilla = crear[k], semillas.randrange(2**32)
+            if culpable is not None:
+                continue  # la partida ya está perdida: no hace falta crear a los demás
             try:
-                jugadores.append(crear["a" if es_a else "b"](semillas.randrange(2**32)))
+                if k in colgados:
+                    raise FaltaDeBot(None, colgados[k])
+                if cajas:
+                    jugadores.append(JugadorVigilado(cajas[pareja(asiento)], asiento, receta,
+                                                     semilla, limite_segundos))
+                else:
+                    jugadores.append(receta(semilla))
             except FaltaDeBot as falta:  # solo con vigilar: el bot ni siquiera se crea
-                culpable = culpable if culpable is not None else pareja(asiento)
-                _juntar(motivos[lado[pareja(asiento)]], [falta.motivo])
+                culpable = pareja(asiento)
+                _juntar(motivos[lado[culpable]], [falta.motivo])
+                if falta.motivo.startswith("no ha respondido"):
+                    colgados[k] = falta.motivo
         match = None
         if culpable is None:
-            match = Match(jugadores, mejor_de=mejor_de, seed=semilla_reparto)
-            try:
+            try:  # sentarse (sit) también es una llamada al bot
+                match = Match(jugadores, mejor_de=mejor_de, seed=semilla_reparto)
                 ganadora = match.play()
             except FaltaDeBot as falta:
                 culpable = pareja(falta.asiento)
