@@ -29,7 +29,8 @@ from dataclasses import dataclass, field
 
 from musarena.actions import Action
 from musarena.arena import fabrica
-from musarena.engine import legal_actions
+from musarena.chat import CanalChat
+from musarena.engine import buscar_legal, legal_actions
 from musarena.grabacion import Grabador, accion_desde_dict
 from musarena.match import Match
 from musarena.observation import Observation
@@ -84,6 +85,63 @@ class JugadorWeb(Player):
         if accion is None:
             raise RuntimeError("Le toca a un humano y su navegador no ha mandado ninguna jugada")
         return accion
+
+
+class BotSeguro(Player):
+    """Un bot de la web que no puede dejar la mesa rota.
+
+    En la web los bots no juegan en otro proceso (sería demasiada memoria por mesa), así que si
+    un bot lanza un error o devuelve una jugada ilegal, desde ese momento **juega al azar** y se
+    avisa en el chat; si falla al enterarse del final de una mano, se ignora. Sin esto, la mesa
+    devolvía un error en cada consulta para siempre. (Un bot que se cuelga no se puede cortar
+    aquí: los de ``bots/`` se revisan en su PR y pasan ``tests/test_bots_nuevos.py``.)
+    """
+
+    def __init__(self, bot: Player, seed: int) -> None:
+        super().__init__(bot.nombre)
+        self.bot = bot
+        self.rng = random.Random(seed)
+        self.roto = False
+
+    def sit(self, asiento: int, chat: CanalChat) -> None:
+        super().sit(asiento, chat)
+        try:
+            self.bot.sit(asiento, chat)
+        except Exception:
+            self._romper("al sentarse")
+
+    def _romper(self, cuando: str) -> None:
+        log.exception("El bot del asiento %s ha fallado %s", self.asiento, cuando)
+        self.roto = True
+        self.say("(He fallado: a partir de ahora juego al azar)")
+
+    def choose_action(self, observation: Observation, legal_actions: Sequence[Action]) -> Action:
+        if not self.roto:
+            try:
+                accion = buscar_legal(legal_actions, self.bot.choose_action(
+                    observation, list(legal_actions)))
+                if accion is not None:
+                    return accion
+                log.error("El bot del asiento %s ha devuelto una jugada ilegal", self.asiento)
+                self.roto = True
+                self.say("(He fallado: a partir de ahora juego al azar)")
+            except Exception:
+                self._romper("al decidir")
+        return self.rng.choice(list(legal_actions))
+
+    def on_hand_end(self, observation: Observation) -> None:
+        if not self.roto:
+            try:
+                self.bot.on_hand_end(observation)
+            except Exception:
+                self._romper("al acabar la mano")
+
+    def on_game_end(self, observation: Observation) -> None:
+        if not self.roto:
+            try:
+                self.bot.on_game_end(observation)
+            except Exception:
+                log.exception("El bot del asiento %s ha fallado al acabar", self.asiento)
 
 
 def tipos_permitidos(config: Config) -> list[str]:
@@ -143,7 +201,8 @@ class Mesa:
                 self.tokens[asiento] = (self.tokens_iniciales.get(asiento)
                                         or secrets.token_urlsafe(16))
             else:
-                self.jugadores.append(fabrica(tipo)(semillas.randrange(2**32)))
+                semilla = semillas.randrange(2**32)
+                self.jugadores.append(BotSeguro(fabrica(tipo)(semilla), semilla))
         # Siempre se apuntan las jugadas (los torneos las necesitan); el archivo solo se escribe
         # si hay carpeta de partidas.
         self.grabador = Grabador(self.seed, self.mejor_de, self.tipos)

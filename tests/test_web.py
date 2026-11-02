@@ -371,3 +371,28 @@ def test_ventana_olvida_lo_viejo():
     assert v.permitir("b")
     reloj.t += 61
     assert v.permitir("a")
+
+
+def test_un_bot_que_falla_no_rompe_la_mesa(tmp_path):
+    """Si un bot de la carpeta del servidor falla, sigue jugando al azar y lo dice en el chat
+    (antes, cada consulta de la mesa daba error para siempre)."""
+    carpeta = tmp_path / "bots"
+    carpeta.mkdir()
+    (carpeta / "roto.py").write_text(
+        "from musarena.player import Bot\n\n"
+        "class Roto(Bot):\n"
+        "    tipo = 'roto'\n\n"
+        "    def choose_action(self, observation, legal_actions):\n"
+        "        raise RuntimeError('fallo a propósito')\n", encoding="utf-8")
+    config = Config(pausa_bots=0, carpeta_partidas="", carpeta_bots=str(carpeta))
+    mesas = GestorMesas(config)
+    mesa = mesas.crear(["humano", (carpeta / "roto.py").as_posix(), "random", "random"])
+    token = mesa.tokens[0]
+    for _ in range(200):
+        v = mesa.vista(token)
+        if v["ganador"] is not None:
+            break
+        if v["es_mi_turno"]:
+            mesa.jugar(token, 0, v["version"])
+    assert mesa.match.terminada
+    assert any("juego al azar" in m.texto for m in mesa.match.chat.mensajes)
