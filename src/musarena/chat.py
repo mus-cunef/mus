@@ -12,6 +12,9 @@ from musarena.state import nombre_jugador
 
 #: Longitud máxima de un mensaje, para que nadie pueda llenar la mesa de texto.
 LONGITUD_MAXIMA = 500
+#: Mensajes que se guardan (los más antiguos se olvidan): cada jugador recibe el chat en cada
+#: consulta, y con miles de mensajes cada respuesta pesaría megas.
+MAX_MENSAJES = 100
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,7 @@ class Chat:
 
     def __init__(self) -> None:
         self._mensajes: list[MensajeChat] = []
+        self._escritos = 0
         self.numero_mano = 1
 
     def escribir(self, asiento: int, texto: str) -> MensajeChat | None:
@@ -39,8 +43,9 @@ class Chat:
         texto = str(texto).strip()[:LONGITUD_MAXIMA]
         if not texto:
             return None
-        mensaje = MensajeChat(len(self._mensajes), asiento, texto, self.numero_mano)
-        self._mensajes.append(mensaje)
+        mensaje = MensajeChat(self._escritos, asiento, texto, self.numero_mano)
+        self._escritos += 1
+        self._mensajes = [*self._mensajes[-(MAX_MENSAJES - 1):], mensaje]
         return mensaje
 
     @property

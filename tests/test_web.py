@@ -74,6 +74,14 @@ def test_la_pagina_lleva_su_version(entorno):
     assert cliente.get("/api/opciones").headers["X-Mus-Version"] == version
 
 
+def test_la_pagina_no_carga_scripts_de_fuera(entorno):
+    cliente, *_ = entorno
+    r = cliente.get("/")
+    assert "script-src 'self'" in r.headers["Content-Security-Policy"]
+    assert "cdn." not in r.text and "/estaticos/marked.min.js" in r.text
+    assert cliente.get("/estaticos/marked.min.js").status_code == 200
+
+
 def test_reglas_y_clasificacion(entorno):
     cliente, *_ = entorno
     assert "Reglas del mus" in cliente.get("/api/reglas").text
@@ -189,6 +197,26 @@ def test_chat(entorno):
     largo = cliente.post(f"/api/mesas/{mesa_id}/chat", headers={"X-Token": t0},
                          json={"texto": "x" * 900})
     assert len(largo.json()["chat"][-1]["texto"]) <= 200
+
+
+def test_el_chat_no_se_puede_inundar(entorno):
+    cliente, mesas, reloj, _ = entorno
+    datos = _crear(cliente, ("humano", "random", "humano", "random"))
+    mesa_id, t0 = datos["mesa"], datos["asientos"][0]["token"]
+
+    def escribir(texto):
+        return cliente.post(f"/api/mesas/{mesa_id}/chat", headers={"X-Token": t0},
+                            json={"texto": texto})
+
+    for i in range(10):
+        assert escribir(f"mensaje {i}").status_code == 200
+    assert escribir("uno más").status_code == 429  # demasiado deprisa
+    reloj.t += 60
+    for i in range(120):  # al ritmo permitido, el chat guarda solo los últimos 100
+        reloj.t += 6
+        assert escribir(f"lento {i}").status_code == 200
+    chat = _ver(cliente, mesa_id, t0).json()["chat"]
+    assert len(chat) == 100 and chat[-1]["texto"] == "lento 119"
 
 
 def test_limite_de_mesas_y_caducidad(entorno):
@@ -325,3 +353,58 @@ def test_si_no_se_puede_guardar_la_jugada_se_reintenta(tmp_path):
     fallar[0] = False
     mesa.vista(token)  # la siguiente consulta lo vuelve a intentar, con todas las jugadas
     assert not mesa.sin_guardar and guardadas[-1] == len(mesa.acciones) > 1
+
+
+def test_mesas_nuevas_por_hora(tmp_path):
+    config = Config(pausa_bots=0, carpeta_partidas="", max_mesas_por_hora=2)
+    c = TestClient(crear_app(config, GestorMesas(config), GestorTorneos(config)))
+    asientos = {"asientos": ["humano", "random", "random", "random"]}
+    assert [c.post("/api/mesas", json=asientos).status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_ventana_olvida_lo_viejo():
+    from musarena.web.limites import Ventana
+
+    reloj = Reloj()
+    v = Ventana(2, 60, reloj)
+    assert v.permitir("a") and v.permitir("a") and not v.permitir("a")
+    assert v.permitir("b")
+    reloj.t += 61
+    assert v.permitir("a")
+
+
+def test_un_bot_que_falla_no_rompe_la_mesa(tmp_path):
+    """Si un bot de la carpeta del servidor falla, sigue jugando al azar y lo dice en el chat
+    (antes, cada consulta de la mesa daba error para siempre)."""
+    carpeta = tmp_path / "bots"
+    carpeta.mkdir()
+    (carpeta / "roto.py").write_text(
+        "from musarena.player import Bot\n\n"
+        "class Roto(Bot):\n"
+        "    tipo = 'roto'\n\n"
+        "    def choose_action(self, observation, legal_actions):\n"
+        "        raise RuntimeError('fallo a propósito')\n", encoding="utf-8")
+    config = Config(pausa_bots=0, carpeta_partidas="", carpeta_bots=str(carpeta))
+    mesas = GestorMesas(config)
+    mesa = mesas.crear(["humano", (carpeta / "roto.py").as_posix(), "random", "random"])
+    token = mesa.tokens[0]
+    for _ in range(200):
+        v = mesa.vista(token)
+        if v["ganador"] is not None:
+            break
+        if v["es_mi_turno"]:
+            mesa.jugar(token, 0, v["version"])
+    assert mesa.match.terminada
+    assert any("juego al azar" in m.texto for m in mesa.match.chat.mensajes)
+
+
+def test_en_internet_no_se_ofrecen_los_bots_de_la_carpeta(monkeypatch, tmp_path):
+    from musarena.web.mesas import tipos_permitidos
+
+    monkeypatch.chdir(tmp_path)  # aunque haya .py en la carpeta desde la que se arranca
+    (tmp_path / "suelto.py").write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.setenv("MUS_PUBLICO", "1")
+    monkeypatch.delenv("MUS_BOTS", raising=False)
+    config = Config.desde_entorno()
+    assert config.carpeta_bots == ""
+    assert not any(t.endswith(".py") for t in tipos_permitidos(config))

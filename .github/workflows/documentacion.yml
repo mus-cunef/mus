@@ -15,10 +15,10 @@ on:
         description: Partidas por cruce
         default: "100"
 
+# El trabajo que juega el torneo ejecuta el código de los bots (también los de otros equipos):
+# solo puede leer. El permiso de publicar lo tiene solo el trabajo que publica.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -51,6 +51,9 @@ jobs:
   publicar:
     needs: construir
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.despliegue.outputs.page_url }}

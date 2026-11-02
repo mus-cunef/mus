@@ -1180,7 +1180,9 @@ const Reglas = {
     const caja = $("#reglas");
     try {
       const texto = await api("GET", "/api/reglas");
-      if (window.marked) caja.innerHTML = window.marked.parse(texto);  // documento propio del servidor
+      // Las reglas son un documento propio del servidor; aun así, la CSP de la página impide
+      // que se ejecute cualquier script que pudiera llevar.
+      if (window.marked) caja.innerHTML = window.marked.parse(texto);
       else caja.replaceChildren(el("pre", { style: "white-space:pre-wrap" }, texto));
       this.cargadas = true;
     } catch (e) {

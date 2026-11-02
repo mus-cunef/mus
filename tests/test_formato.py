@@ -48,7 +48,10 @@ def test_32_parejas_hacen_8_grupos_y_octavos():
 def test_validar_rechaza_formatos_imposibles():
     for malo in (Formato(tipo="x"), Formato(max_parejas=1), Formato(max_parejas=65),
                  Formato(tam_grupo=2), Formato(pasan_por_grupo=4, tam_grupo=4),
-                 Formato(mejor_de=4), Formato(mejor_de_final=1)):
+                 Formato(mejor_de=4), Formato(mejor_de_final=1),
+                 # Tipos que llegan mal desde el navegador (antes se aceptaban).
+                 Formato(max_parejas=2.5), Formato(pasan_por_grupo=1.5),
+                 Formato(max_parejas=True), Formato(tercer_puesto="no")):
         with pytest.raises(ValueError):
             malo.validar()
     Formato(tipo="grupos", max_parejas=40, tam_grupo=5, pasan_por_grupo=3).validar()

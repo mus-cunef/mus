@@ -51,6 +51,15 @@ class Formato:
 
     def validar(self) -> None:
         """Lanza ``ValueError`` (con un mensaje para el usuario) si algo no tiene sentido."""
+        # Los datos llegan del navegador en JSON: 2.5 o "no" no pueden colarse como números o
+        # sí/no (un torneo con max_parejas=2.5 se creaba y luego su página daba error).
+        for campo in ("max_parejas", "tam_grupo", "pasan_por_grupo", "mejor_de",
+                      "mejor_de_final"):
+            valor = getattr(self, campo)
+            if not isinstance(valor, int) or isinstance(valor, bool):
+                raise ValueError(f"{campo} tiene que ser un número entero")
+        if not isinstance(self.tercer_puesto, bool):
+            raise ValueError("tercer_puesto tiene que ser sí o no")
         if self.tipo not in TIPOS_FORMATO:
             raise ValueError(f"Formato desconocido: {self.tipo!r}")
         if not MIN_PAREJAS <= self.max_parejas <= MAX_PAREJAS:

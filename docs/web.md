@@ -47,12 +47,21 @@ Las partidas con algún humano se **graban** en `partidas/`, igual que con `mus-
   va en la cabecera `X-Token`. Sin él no se puede ver ni jugar ese asiento.
 - **Validación:** el servidor comprueba el turno, la jugada (una de las legales) y la versión, y
   el motor la vuelve a validar.
-- **Chat:** se guarda como texto y la página lo pinta con `textContent`, nunca como HTML.
+- **Chat:** se guarda como texto y la página lo pinta con `textContent`, nunca como HTML. Lo
+  único que se pinta como HTML son las reglas (un documento del propio servidor, con `marked`).
 - **Límites:** máximo de mesas abiertas (las inactivas se cierran solas), un solo torneo a la
   vez, máximo de partidas por cruce, y desde la web solo se eligen bots de la lista del servidor
   (nunca una ruta).
 - **Cabeceras:** `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` y
-  `X-Frame-Options: DENY`.
+  `X-Frame-Options: DENY`. La página lleva además una **Content-Security-Policy** que solo deja
+  ejecutar scripts del propio servidor (`marked` va copiado en `estaticos/`, no se carga de un
+  CDN): aunque alguien colara HTML, no podría leer los códigos de asiento del enlace.
+- **Por dirección:** en modo público, cada dirección puede abrir 20 mesas y crear 10 cuentas
+  por hora, y cada asiento escribir 10 mensajes por minuto (el chat guarda los últimos 100).
+  Detrás de Render, la dirección es la última de `X-Forwarded-For` (la que pone su proxy).
+- **Contraseñas:** tras 8 fallos con un usuario desde una dirección, esa dirección se bloquea
+  15 minutos para ese usuario (y tras 30 fallos en total, para todos). Un rival que prueba con
+  tu nombre solo se bloquea a sí mismo.
 
 ## Cuentas y torneos privados
 
@@ -178,7 +187,9 @@ Las tablas se crean solas al arrancar.
 ## Modo internet
 
 `MUS_PUBLICO=1` activa límites estrictos para que un visitante no acapare el servidor: 50 mesas
-abiertas como máximo, 60 partidas por cruce en los torneos y 2 procesos por torneo. Las mesas
+abiertas como máximo, 60 partidas por cruce en los torneos y 2 procesos por torneo. Además,
+por defecto **no** se ofrecen los bots de `bots/`: son código de otros equipos y el servidor
+guarda secretos (`MUS_BD`); se pueden activar con `MUS_BOTS=bots` si se han revisado. Las mesas
 viven en memoria, así que la web se arranca con **un solo proceso** (`mus-web` ya lo hace).
 
 Variables de entorno: `MUS_PUBLICO`, `MUS_MAX_MESAS`, `MUS_MINUTOS_INACTIVA`,

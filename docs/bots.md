@@ -17,8 +17,12 @@ class MiBot(Bot):
         return legal_actions[0]
 ```
 
-- El bot **nunca** ve el estado completo: solo su `Observation` (sus cartas, marcador, apuestas,
-  declaraciones, historial de la mano, chat y las manos ya terminadas, con sus cartas y acciones).
+- El API solo le da al bot su `Observation` (sus cartas, marcador, apuestas, declaraciones,
+  historial de la mano, chat y las manos ya terminadas, con sus cartas y acciones), nunca el
+  estado completo. Ojo: un bot es código Python normal y, con trucos (recorrer la memoria del
+  proceso, leer variables de entorno), podría saltarse eso. Por eso **cada bot externo se revisa
+  en su PR** con la lista de [`bots/README.md`](https://github.com/mus-cunef/mus/blob/main/bots/README.md),
+  y `tests/test_bots_nuevos.py` rechaza los imports y funciones que no hacen falta para jugar.
 - Si devuelve una acción que no está en `legal_actions`, el motor lanza `IllegalActionError` y
   la partida no se corrompe.
 - `self.rng` es un `random.Random(seed)` propio: con la misma semilla, el bot juega igual.

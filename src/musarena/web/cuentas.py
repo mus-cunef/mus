@@ -7,7 +7,13 @@
   (el JavaScript de la página no la puede leer) y ``SameSite=Lax`` (otra web no puede hacer
   peticiones con ella). En la base de datos solo se guarda el hash del código: quien la lea no
   puede hacerse pasar por nadie.
-- **Fuerza bruta:** tras varios intentos fallidos con un mismo usuario, se bloquea un rato.
+- **Fuerza bruta:** tras varios intentos fallidos con un usuario **desde una misma dirección**,
+  esa dirección se bloquea un rato para ese usuario; y cada dirección tiene además un tope de
+  fallos en total. Así nadie puede dejar a otro sin entrar (se bloquearía solo a sí mismo).
+  El intento se apunta **antes** de comprobar la contraseña, así que lanzar muchos a la vez no
+  sirve para probar más de la cuenta.
+- **Qué usuarios existen** no es un secreto (los nombres se ven en los torneos y el registro
+  dice si uno está cogido); aun así, entrar tarda lo mismo exista o no el usuario.
 """
 
 from __future__ import annotations
@@ -30,8 +36,9 @@ from musarena.web.mesas import ErrorMesa
 DURACION_SESION = 30 * 24 * 3600
 MIN_CLAVE, MAX_CLAVE = 8, 128
 MIN_NOMBRE, MAX_NOMBRE = 3, 20
-#: Intentos fallidos seguidos permitidos por usuario antes de bloquearlo un rato.
-MAX_FALLOS, BLOQUEO = 8, 15 * 60
+#: Intentos fallidos permitidos por usuario y dirección, y por dirección en total, antes de
+#: bloquear un rato.
+MAX_FALLOS, MAX_FALLOS_IP, BLOQUEO = 8, 30, 15 * 60
 #: Parámetros de scrypt (2^14 · 8 · 128 B = 16 MB por cálculo, unos 50 ms).
 _N, _R, _P = 2**14, 8, 1
 
@@ -57,6 +64,11 @@ def comprobar_clave(clave: str, guardado: str) -> bool:
     except ValueError:
         return False
     return hmac.compare_digest(calculado.hex(), h)
+
+
+#: Hash con el que se compara cuando el usuario no existe (se calcula una vez): así entrar
+#: tarda lo mismo, un solo scrypt, exista o no.
+_RELLENO = hash_clave("x" * MIN_CLAVE, b"\0" * 16)
 
 
 def _hash_token(token: str) -> str:
@@ -87,6 +99,7 @@ class Cuentas:
         self.motor = motor
         self.reloj = reloj
         self._fallos: dict[str, list[float]] = {}
+        self._en_curso: dict[str, int] = {}  # intentos reservados que aún se comprueban
         self._lock = threading.Lock()
 
     # --- Registro y entrada ---------------------------------------------------------------
@@ -110,40 +123,53 @@ class Cuentas:
         usuario = Usuario(uid, nombre)
         return usuario, self.abrir_sesion(usuario)
 
-    def entrar(self, nombre: object, clave: object) -> tuple[Usuario, str]:
-        """Comprueba la contraseña y abre una sesión."""
+    def entrar(self, nombre: object, clave: object, ip: str = "") -> tuple[Usuario, str]:
+        """Comprueba la contraseña y abre una sesión (``ip``: de dónde llega el intento)."""
         if not isinstance(nombre, str) or not isinstance(clave, str) or len(clave) > MAX_CLAVE:
             raise ErrorMesa("Usuario o contraseña incorrectos", 401)
         clave_usuario = nombre.strip().lower()
-        self._comprobar_bloqueo(clave_usuario)
-        with self.motor.connect() as c:
-            fila = c.execute(select(usuarios).where(
-                usuarios.c.nombre_clave == clave_usuario)).first()
-        # Se calcula el hash aunque el usuario no exista: así la respuesta tarda lo mismo y
-        # no delata qué nombres están registrados.
-        guardada = fila.clave if fila else hash_clave("x" * MIN_CLAVE, b"\0" * 16)
-        if not comprobar_clave(clave, guardada) or fila is None:
-            self._apuntar_fallo(clave_usuario)
+        limites = {f"u:{clave_usuario}|{ip}": MAX_FALLOS, f"ip:{ip}": MAX_FALLOS_IP}
+        self._reservar(limites)
+        try:
+            with self.motor.connect() as c:
+                fila = c.execute(select(usuarios).where(
+                    usuarios.c.nombre_clave == clave_usuario)).first()
+            coincide = comprobar_clave(clave, fila.clave if fila else _RELLENO)  # siempre uno
+            correcta = coincide and fila is not None
+            with self._lock:
+                if correcta:
+                    self._fallos.pop(f"u:{clave_usuario}|{ip}", None)
+                else:
+                    for k in limites:
+                        self._fallos.setdefault(k, []).append(self.reloj())
+        finally:
+            with self._lock:
+                for k in limites:
+                    self._en_curso[k] -= 1
+                    if not self._en_curso[k]:
+                        del self._en_curso[k]
+        if not correcta:
             raise ErrorMesa("Usuario o contraseña incorrectos", 401)
-        with self._lock:
-            self._fallos.pop(clave_usuario, None)
         usuario = Usuario(fila.id, fila.nombre)
         return usuario, self.abrir_sesion(usuario)
 
-    def _comprobar_bloqueo(self, nombre: str) -> None:
+    def _reservar(self, limites: dict[str, int]) -> None:
+        """Cuenta el intento antes de comprobar nada, dentro del cerrojo: los intentos a la vez
+        no se cuelan. Si ya se ha llegado al tope, error 429."""
         ahora = self.reloj()
         with self._lock:
-            recientes = [t for t in self._fallos.get(nombre, []) if ahora - t < BLOQUEO]
-            self._fallos[nombre] = recientes
-        if len(recientes) >= MAX_FALLOS:
-            minutos = int((BLOQUEO - (ahora - recientes[0])) // 60) + 1
-            raise ErrorMesa(f"Demasiados intentos fallidos: prueba dentro de {minutos} min", 429)
-
-    def _apuntar_fallo(self, nombre: str) -> None:
-        with self._lock:
-            self._fallos.setdefault(nombre, []).append(self.reloj())
-            if len(self._fallos) > 10_000:  # que no crezca sin fin
-                self._fallos.clear()
+            if len(self._fallos) > 10_000:  # que no crezca sin fin: fuera solo lo caducado
+                self._fallos = {k: v for k, v in self._fallos.items()
+                                if v and ahora - v[-1] < BLOQUEO}
+            for k, maximo in limites.items():
+                recientes = [t for t in self._fallos.get(k, []) if ahora - t < BLOQUEO]
+                self._fallos[k] = recientes
+                if len(recientes) + self._en_curso.get(k, 0) >= maximo:
+                    espera = BLOQUEO - (ahora - recientes[0]) if recientes else 60
+                    raise ErrorMesa("Demasiados intentos fallidos: prueba dentro de "
+                                    f"{int(espera // 60) + 1} min", 429)
+            for k in limites:
+                self._en_curso[k] = self._en_curso.get(k, 0) + 1
 
     # --- Sesiones -------------------------------------------------------------------------
 

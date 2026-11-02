@@ -2,7 +2,8 @@
 
 Todo se puede cambiar con variables de entorno, sin tocar el código. ``MUS_PUBLICO=1`` activa
 el **modo internet**: límites más estrictos para que un solo visitante no pueda acaparar el
-servidor (pocas partidas por torneo, menos mesas abiertas).
+servidor (pocas partidas por torneo, menos mesas abiertas, y mesas y cuentas nuevas por
+dirección y hora).
 """
 
 from __future__ import annotations
@@ -62,6 +63,11 @@ class Config:
     bd: str = "sqlite://"  # en memoria (tests); mus-web usa un archivo (desde_entorno)
     #: Usuarios que pueden crear torneos privados (vacío = cualquiera con cuenta).
     organizadores: tuple[str, ...] = ()
+    #: Detrás de un proxy (Render): la dirección del cliente es la última de X-Forwarded-For.
+    detras_de_proxy: bool = False
+    #: Mesas y cuentas nuevas por dirección y hora como máximo (0 = sin límite).
+    max_mesas_por_hora: int = 0
+    max_registros_por_hora: int = 0
 
     @classmethod
     def desde_entorno(cls) -> Config:
@@ -73,7 +79,9 @@ class Config:
             max_partidas_torneo=_entero("MUS_MAX_PARTIDAS_TORNEO", 60 if publico else 400),
             procesos_torneo=_entero("MUS_PROCESOS_TORNEO", 2 if publico else 0),
             carpeta_partidas=os.environ.get("MUS_PARTIDAS", "partidas"),
-            carpeta_bots=os.environ.get("MUS_BOTS", "bots"),
+            # En internet, por defecto sin los bots de bots/: son código de otros equipos y el
+            # servidor guarda secretos (MUS_BD). Se activan con MUS_BOTS=bots.
+            carpeta_bots=os.environ.get("MUS_BOTS", "" if publico else "bots"),
             clasificacion=os.environ.get("MUS_CLASIFICACION", "docs/clasificacion.json"),
             clasificacion_url=os.environ.get(
                 "MUS_CLASIFICACION_URL", URL_CLASIFICACION if publico else ""),
@@ -81,6 +89,9 @@ class Config:
             bd=_url_bd(os.environ.get("MUS_BD", "sqlite:///mus_web.db")),
             organizadores=tuple(n.strip() for n in os.environ.get("MUS_ORGANIZADORES", "")
                                 .split(",") if n.strip()),
+            detras_de_proxy=os.environ.get("MUS_PROXY", "1" if publico else "0") == "1",
+            max_mesas_por_hora=_entero("MUS_MESAS_POR_HORA", 20 if publico else 0),
+            max_registros_por_hora=_entero("MUS_REGISTROS_POR_HORA", 10 if publico else 0),
         )
 
     def ruta(self, nombre: str) -> Path:

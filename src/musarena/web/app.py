@@ -48,6 +48,7 @@ from musarena.web.bd import conectar
 from musarena.web.config import Config
 from musarena.web.cuentas import Cuentas, Usuario
 from musarena.web.formato import Formato, describir
+from musarena.web.limites import Ventana, ip_cliente
 from musarena.web.mesas import ErrorMesa, GestorMesas, etiqueta, tipos_permitidos
 from musarena.web.privados import Privados
 from musarena.web.torneos import GestorTorneos
@@ -60,6 +61,14 @@ NOMBRE_WEB = "millosolo-mus"
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 #: Archivos de la página que llevan la versión en su dirección.
 ARCHIVOS_PAGINA = ("app.js", "estilo.css")
+#: Content-Security-Policy de la página: solo scripts del propio servidor (``marked`` va en
+#: ``estaticos/``, no en un CDN), y nada de conectarse a otros sitios ni de meterla en un marco.
+#: Los estilos en línea se permiten (la página pone algunos con ``style=``); las fuentes, de
+#: Google Fonts.
+CSP = ("default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; "
+       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+       "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+       "form-action 'self'; frame-ancestors 'none'")
 
 
 def version_pagina() -> str:
@@ -164,6 +173,11 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     # se ha publicado una versión nueva y la página avisa para recargar.
     version = version_pagina()
     html = pagina(version)
+    nuevas_mesas = Ventana(config.max_mesas_por_hora, 3600)
+    nuevos_registros = Ventana(config.max_registros_por_hora, 3600)
+
+    def ip(request: Request) -> str:
+        return ip_cliente(request, config.detras_de_proxy)
 
     @app.exception_handler(ErrorMesa)
     async def error_mesa(_: Request, e: ErrorMesa) -> JSONResponse:
@@ -199,9 +213,11 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         }
 
     @app.post("/api/mesas")
-    def crear_mesa(datos: NuevaMesa) -> dict:
+    def crear_mesa(datos: NuevaMesa, request: Request) -> dict:
         if any(n is not None and len(n) > 200 for n in datos.nombres):
             raise ErrorMesa("Nombre demasiado largo")
+        if not nuevas_mesas.permitir(ip(request)):
+            raise ErrorMesa("Has abierto muchas mesas en la última hora; prueba más tarde", 429)
         mesa = app.state.mesas.crear(datos.asientos, datos.mejor_de, datos.velocidad,
                                      datos.nombres)
         return {"mesa": mesa.id,
@@ -247,12 +263,15 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         return {"usuario": datos_usuario(usuario) if usuario else None}
 
     @app.post("/api/cuenta/registro")
-    def registro(datos: Credenciales, respuesta: Response) -> dict:
+    def registro(datos: Credenciales, respuesta: Response, request: Request) -> dict:
+        if not nuevos_registros.permitir(ip(request)):
+            raise ErrorMesa("Se han creado muchas cuentas desde aquí; prueba más tarde", 429)
         return con_sesion(respuesta, *app.state.cuentas.registrar(datos.nombre, datos.clave))
 
     @app.post("/api/cuenta/entrar")
-    def entrar(datos: Credenciales, respuesta: Response) -> dict:
-        return con_sesion(respuesta, *app.state.cuentas.entrar(datos.nombre, datos.clave))
+    def entrar(datos: Credenciales, respuesta: Response, request: Request) -> dict:
+        return con_sesion(respuesta, *app.state.cuentas.entrar(datos.nombre, datos.clave,
+                                                               ip(request)))
 
     @app.post("/api/cuenta/salir")
     def salir(respuesta: Response, mus_sesion: str | None = Cookie(default=None)) -> dict:
@@ -393,7 +412,8 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     @app.get("/", include_in_schema=False)
     def inicio() -> HTMLResponse:
         # no-cache: el navegador pregunta siempre si hay página nueva.
-        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache",
+                                           "Content-Security-Policy": CSP})
 
     app.mount("/estaticos", StaticFiles(directory=str(ESTATICOS)), name="estaticos")
     return app
