@@ -308,6 +308,21 @@ def test_aviso_de_version_nueva(servidor, pagina):
     assert not pagina.errores, pagina.errores
 
 
+def _pulsar_una_accion(pagina):
+    """Pulsa la primera acción disponible (cerrando antes el resumen de una mano, si lo hay)."""
+    limite = time.time() + 15
+    while time.time() < limite:
+        if pagina.is_visible("#resumen-mano"):
+            pagina.click("#resumen-mano button", timeout=2000)
+            continue
+        try:
+            pagina.click("#acciones button:not([disabled])", timeout=1000)
+            return
+        except playwright.Error:
+            pass
+    raise AssertionError("No hay ninguna acción que pulsar")
+
+
 def _abrir_mesa(pagina, url, mesas):
     mesa = mesas.crear(["humano", "random", "random", "random"])
     pagina.goto(f"{url}/#/mesa/{mesa.id}/{mesa.tokens[0]}")
@@ -330,10 +345,10 @@ def test_si_falla_una_jugada_se_puede_volver_a_jugar(servidor, pagina):
 
     pagina.route("**/jugar", fallar_una_vez)
     version = mesa.version
-    pagina.click("#acciones button:not([disabled])")
+    _pulsar_una_accion(pagina)
     pagina.wait_for_selector("#aviso-mesa")
     assert fallos and mesa.version == version  # la jugada no ha llegado
-    pagina.click("#acciones button:not([disabled])", timeout=5000)  # se puede repetir
+    _pulsar_una_accion(pagina)  # se puede repetir
     limite = time.time() + 5
     while mesa.version == version and time.time() < limite:
         pagina.wait_for_timeout(50)
