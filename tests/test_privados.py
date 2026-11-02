@@ -13,7 +13,7 @@ from sqlalchemy import select  # noqa: E402
 from musarena.web.app import crear_app  # noqa: E402
 from musarena.web.bd import usuarios  # noqa: E402
 from musarena.web.config import Config  # noqa: E402
-from musarena.web.mesas import GestorMesas  # noqa: E402
+from musarena.web.mesas import ErrorMesa, GestorMesas  # noqa: E402
 
 DIA = 24 * 3600
 CLAVE = "clave-secreta-1"
@@ -217,15 +217,22 @@ def test_inscripcion_por_parejas(app, reloj):
     assert [p["confirmada"] for p in v["parejas"]] == [False]
     assert _ver(c, codigo)["parejas"] == []
     assert _ver(b, codigo)["parejas"][0]["invitado_yo"] is True
-    # Nadie puede estar en dos parejas, ni repetir nombre.
-    assert b.post(f"/api/privados/{codigo}/parejas",
-                  json={"nombre": "Otra", "companero": "Carla"}).status_code == 409
+    # Una invitación sin aceptar no bloquea a la invitada: puede invitar a otra persona...
+    v = b.post(f"/api/privados/{codigo}/parejas", json={"nombre": "Otra", "companero": "Carla"})
+    assert v.status_code == 200 and v.json()["yo"]["pareja"] != pid
+    assert _ver(b, codigo)["parejas"][0]["invitado_yo"] is True  # y sigue viendo la de Ana
+    # ...pero cada uno solo puede tener una invitación mandada, y no se repiten nombres.
+    assert a.post(f"/api/privados/{codigo}/parejas",
+                  json={"nombre": "Otra más", "companero": "Carla"}).status_code == 409
     assert c.post(f"/api/privados/{codigo}/parejas",
                   json={"nombre": "las a", "companero": "Pablo"}).status_code == 409
-    # Solo el invitado puede aceptar.
+    # Solo el invitado puede aceptar; al aceptar se borran las demás invitaciones de los dos.
     assert c.post(f"/api/privados/{codigo}/parejas/{pid}/aceptar").status_code == 404
     assert b.post(f"/api/privados/{codigo}/parejas/{pid}/aceptar").status_code == 200
-    assert _ver(c, codigo)["parejas"][0]["jugadores"] == ["Ana", "Berta"]
+    assert [p["jugadores"] for p in _ver(c, codigo)["parejas"]] == [["Ana", "Berta"]]
+    # Ya en pareja, nadie más puede meterlas en otra.
+    assert c.post(f"/api/privados/{codigo}/parejas",
+                  json={"nombre": "Las C", "companero": "Ana"}).status_code == 409
     # Rechazar una invitación la borra.
     v = c.post(f"/api/privados/{codigo}/parejas",
                json={"nombre": "Las C", "companero": "Pablo"}).json()
@@ -421,6 +428,62 @@ def test_mis_torneos_y_cancelar(app, reloj):
     assert a.post(f"/api/privados/{codigo}/cancelar").status_code == 403
     assert org.post(f"/api/privados/{codigo}/cancelar").status_code == 200
     assert _ver(a, codigo)["estado"] == "cancelado"
+
+
+def test_un_torneo_cancelado_no_se_sigue_jugando(app, reloj):
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    inscritas = _inscribir(app, codigo, 2)
+    org.post(f"/api/privados/{codigo}/empezar")
+    partido = _ver(org, codigo)["partidos"][0]
+    ruta = f"/api/privados/{codigo}/partidos/{partido['id']}"
+    _empezar(codigo, partido, [c for x, y, _ in inscritas for c in (x, y)])
+    a = inscritas[0][0]
+    d = a.post(f"{ruta}/entrar").json()
+    assert org.post(f"/api/privados/{codigo}/cancelar").status_code == 200
+    # Ni se entra, ni la mesa sigue viva, ni se reconstruye tras un reinicio.
+    assert a.post(f"{ruta}/entrar").status_code == 409
+    assert a.get(f"/api/mesas/{d['mesa']}", headers={"X-Token": d["token"]}).status_code == 404
+    config = app.state.config
+    nueva = _cliente(crear_app(config, GestorMesas(config), reloj=reloj))
+    assert nueva.get(f"/api/mesas/{d['mesa']}", headers={"X-Token": d["token"]}).status_code == 404
+    # El organizador tampoco puede dar el partido por ganado: no hay campeón.
+    r = org.post(f"{ruta}/ganador", json={"pareja": partido["a"]})
+    assert r.status_code == 409
+    v = _ver(org, codigo)
+    assert v["estado"] == "cancelado" and v["campeon"] is None
+
+
+@pytest.mark.parametrize("como", ["ganador", "cancelar"])
+def test_una_consulta_justo_al_cerrar_la_mesa_no_la_resucita(app, reloj, como):
+    """Si un jugador consulta justo cuando el organizador cierra el partido, la mesa no se
+    reconstruye desde la base de datos con el partido aún en juego."""
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    inscritas = _inscribir(app, codigo, 2)
+    org.post(f"/api/privados/{codigo}/empezar")
+    partido = _ver(org, codigo)["partidos"][0]
+    ruta = f"/api/privados/{codigo}/partidos/{partido['id']}"
+    _empezar(codigo, partido, [c for x, y, _ in inscritas for c in (x, y)])
+    a = inscritas[0][0]
+    d = a.post(f"{ruta}/entrar").json()
+    mesas = app.state.mesas
+    quitar = mesas.quitar
+
+    def quitar_y_consultar(mesa_id):
+        quitar(mesa_id)
+        try:  # la consulta de un jugador llega justo ahora
+            mesas.obtener(mesa_id)
+        except ErrorMesa:
+            pass
+
+    mesas.quitar = quitar_y_consultar
+    if como == "ganador":
+        r = org.post(f"{ruta}/ganador", json={"pareja": partido["a"]})
+    else:
+        r = org.post(f"/api/privados/{codigo}/cancelar")
+    assert r.status_code == 200
+    assert a.get(f"/api/mesas/{d['mesa']}", headers={"X-Token": d["token"]}).status_code == 404
 
 
 def test_la_partida_empieza_cuando_los_cuatro_le_dan_a_empezar(app, reloj):

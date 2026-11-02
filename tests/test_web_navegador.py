@@ -33,8 +33,10 @@ def _puerto_libre() -> int:
 @pytest.fixture(scope="module")
 def servidor(tmp_path_factory):
     carpeta = tmp_path_factory.mktemp("partidas")
+    # Base de datos en un archivo, como en producción: la de memoria es una sola conexión
+    # compartida por todos los hilos del servidor y falla con peticiones a la vez.
     config = Config(pausa_bots=0.02, carpeta_partidas=str(carpeta), procesos_torneo=1,
-                    max_partidas_torneo=20)
+                    max_partidas_torneo=20, bd=f"sqlite:///{carpeta / 'mus.db'}")
     mesas = GestorMesas(config)
     app = crear_app(config, mesas, GestorTorneos(config))
     puerto = _puerto_libre()
@@ -304,3 +306,54 @@ def test_aviso_de_version_nueva(servidor, pagina):
     pagina.wait_for_selector("#vista-inicio", state="attached")
     assert pagina.locator("#version-nueva").count() == 0
     assert not pagina.errores, pagina.errores
+
+
+def _abrir_mesa(pagina, url, mesas):
+    mesa = mesas.crear(["humano", "random", "random", "random"])
+    pagina.goto(f"{url}/#/mesa/{mesa.id}/{mesa.tokens[0]}")
+    return mesa
+
+
+def test_si_falla_una_jugada_se_puede_volver_a_jugar(servidor, pagina):
+    """Un error al mandar la jugada (corte de red, 500) no deja los botones bloqueados."""
+    url, mesas, _ = servidor
+    mesa = _abrir_mesa(pagina, url, mesas)
+    pagina.wait_for_selector("#acciones button:not([disabled])")
+    fallos = []
+
+    def fallar_una_vez(ruta):
+        if fallos:
+            ruta.continue_()
+        else:
+            fallos.append(ruta.request.url)
+            ruta.fulfill(status=500, content_type="application/json", body="{}")
+
+    pagina.route("**/jugar", fallar_una_vez)
+    version = mesa.version
+    pagina.click("#acciones button:not([disabled])")
+    pagina.wait_for_selector("#aviso-mesa")
+    assert fallos and mesa.version == version  # la jugada no ha llegado
+    pagina.click("#acciones button:not([disabled])", timeout=5000)  # se puede repetir
+    limite = time.time() + 5
+    while mesa.version == version and time.time() < limite:
+        pagina.wait_for_timeout(50)
+    assert mesa.version > version
+
+
+def test_sin_conexion_un_solo_aviso_que_se_quita_al_volver(servidor, pagina):
+    url, mesas, _ = servidor
+    _abrir_mesa(pagina, url, mesas)
+    pagina.wait_for_selector("#acciones button")
+
+    def cortar(ruta):
+        if ruta.request.method == "GET":
+            ruta.abort()
+        else:
+            ruta.continue_()
+
+    pagina.route("**/api/mesas/**", cortar)
+    pagina.wait_for_selector("#aviso-mesa", timeout=20000)
+    pagina.wait_for_timeout(4500)  # otro fallo más: no se añade otro aviso
+    assert pagina.locator("#acciones .error").count() == 1
+    pagina.unroute("**/api/mesas/**")
+    pagina.wait_for_selector("#aviso-mesa", state="detached", timeout=10000)

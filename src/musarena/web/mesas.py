@@ -148,6 +148,8 @@ class Mesa:
                            al_decidir=self.grabador)
         self.version = 0
         self.grabada = False
+        #: La última jugada no se pudo guardar (``al_cambiar`` falló): se reintenta.
+        self.sin_guardar = False
         self._manos_archivadas = 0
         self.lock = threading.Lock()
         self.ultima_actividad = self.reloj()
@@ -183,8 +185,20 @@ class Mesa:
             self._grabar()
         elif len(self.match.state.manos_jugadas) > self._manos_archivadas:
             self._archivar()  # al acabar cada mano
-        if self.al_cambiar is not None:
+        self._guardar()
+
+    def _guardar(self) -> None:
+        """Guarda las jugadas (torneos privados). Si la base de datos falla, la jugada ya está
+        hecha: se apunta y se vuelve a intentar en la siguiente consulta (se guarda siempre la
+        lista entera, así que repetirlo no duplica nada)."""
+        if self.al_cambiar is None:
+            return
+        try:
             self.al_cambiar(self)
+            self.sin_guardar = False
+        except Exception:
+            self.sin_guardar = True
+            log.exception("No se ha podido guardar la jugada de la mesa %s", self.id)
 
     def _grabar(self) -> None:
         if self.config.carpeta_partidas and self.grabador.partida.acciones:
@@ -231,6 +245,8 @@ class Mesa:
         self.avanzar()
         with self.lock:
             self.ultima_actividad = self.reloj()
+            if self.sin_guardar:
+                self._guardar()
             obs = self.match.observation(asiento)
             legales = legal_actions(self.match.state) if obs.es_mi_turno else []
             return vista(obs, legales, self.jugadores_publicos(), self.version)

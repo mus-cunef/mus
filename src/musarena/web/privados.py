@@ -175,10 +175,15 @@ class Privados:
             raise ErrorMesa("Tu compañero tiene que ser otra persona")
         with self._lock, self.motor.begin() as c:
             t = self._abierto(c, codigo)
+            # Una invitación sin aceptar no bloquea a nadie (si no, bastaría con invitar a
+            # alguien para que no pudiera inscribirse con su pareja de verdad).
             for quien, texto in ((usuario, "Ya estás en una pareja de este torneo"),
                                  (otro, f"{otro.nombre} ya está en una pareja de este torneo")):
                 if self._pareja_de(c, t.id, quien.id) is not None:
                     raise ErrorMesa(texto, 409)
+            if self._invitacion_de(c, t.id, usuario.id) is not None:
+                raise ErrorMesa("Ya tienes una invitación sin aceptar: retírala para invitar a "
+                                "otra persona", 409)
             if c.execute(select(parejas.c.id).where(
                     parejas.c.torneo == t.id,
                     func.lower(parejas.c.nombre) == nombre.lower())).first():
@@ -199,9 +204,17 @@ class Privados:
                 raise ErrorMesa("No tienes ninguna invitación de esa pareja", 404)
             if p.confirmada:
                 return
+            for quien in (p.jugador1, p.jugador2):
+                if self._pareja_de(c, t.id, quien) is not None:
+                    raise ErrorMesa("Uno de los dos ya está en otra pareja de este torneo", 409)
             if self._confirmadas(c, t.id) >= t.formato["max_parejas"]:
                 raise ErrorMesa("El torneo ya está completo", 409)
             c.execute(update(parejas).where(parejas.c.id == p.id).values(confirmada=True))
+            # Las demás invitaciones de los dos ya no sirven.
+            c.execute(delete(parejas).where(
+                parejas.c.torneo == t.id, parejas.c.confirmada.is_(False),
+                or_(parejas.c.jugador1.in_((p.jugador1, p.jugador2)),
+                    parejas.c.jugador2.in_((p.jugador1, p.jugador2)))))
 
     def retirar(self, usuario: Usuario, codigo: str, pareja_id: int) -> None:
         """Borra una pareja (o rechaza la invitación) antes del sorteo."""
@@ -231,36 +244,45 @@ class Privados:
             self._sortear(c, t)
 
     def cancelar(self, usuario: Usuario, codigo: str) -> None:
-        with self._lock, self.motor.begin() as c:
-            t = self._torneo(c, codigo)
-            self._solo_organizador(t, usuario)
-            if t.estado in ("terminado", "cancelado"):
-                raise ErrorMesa("El torneo ya está cerrado", 409)
-            for p in c.execute(select(partidos.c.mesa).where(partidos.c.torneo == t.id,
-                                                              partidos.c.mesa.is_not(None))):
-                self.mesas.quitar(p.mesa)
-            c.execute(update(torneos).where(torneos.c.id == t.id).values(estado="cancelado"))
+        with self._lock:
+            with self.motor.begin() as c:
+                t = self._torneo(c, codigo)
+                self._solo_organizador(t, usuario)
+                if t.estado in ("terminado", "cancelado"):
+                    raise ErrorMesa("El torneo ya está cerrado", 409)
+                mesas = [p.mesa for p in c.execute(select(partidos.c.mesa).where(
+                    partidos.c.torneo == t.id, partidos.c.mesa.is_not(None)))]
+                # Sin mesa ni códigos de asiento, ningún partido se puede seguir jugando.
+                c.execute(update(partidos).where(partidos.c.torneo == t.id,
+                                                 partidos.c.estado != "terminado").values(
+                    mesa=None, tokens=None, listos=None))
+                c.execute(update(torneos).where(torneos.c.id == t.id).values(estado="cancelado"))
+            # Las mesas se quitan con el cambio ya guardado: si se quitaran antes, una consulta
+            # de un jugador justo entre medias la reconstruiría desde la base de datos antigua.
+            for mesa in mesas:
+                self.mesas.quitar(mesa)
 
     def dar_ganador(self, usuario: Usuario, codigo: str, partido_id: int, pareja_id: int) -> None:
         """El organizador da un partido por ganado (por ejemplo, si una pareja no se presenta)."""
-        with self._lock, self.motor.begin() as c:
-            t = self._torneo(c, codigo)
-            self._solo_organizador(t, usuario)
-            p = self._partido(c, t, partido_id)
-            if p.estado not in ("listo", "jugando"):
-                raise ErrorMesa("Ese partido no se puede dar por ganado ahora", 409)
-            if pareja_id not in (p.pareja_a, p.pareja_b):
-                raise ErrorMesa("Esa pareja no juega este partido")
-            if p.mesa:
+        with self._lock:
+            with self.motor.begin() as c:
+                t = self._en_curso(c, codigo)
+                self._solo_organizador(t, usuario)
+                p = self._partido(c, t, partido_id)
+                if p.estado not in ("listo", "jugando"):
+                    raise ErrorMesa("Ese partido no se puede dar por ganado ahora", 409)
+                if pareja_id not in (p.pareja_a, p.pareja_b):
+                    raise ErrorMesa("Esa pareja no juega este partido")
+                gana = (p.mejor_de + 1) // 2
+                a_gana = pareja_id == p.pareja_a
+                c.execute(update(partidos).where(partidos.c.id == p.id).values(
+                    estado="terminado", ganador=pareja_id, pase=True, mesa=None, tokens=None,
+                    listos=None,
+                    vacas_a=gana if a_gana else 0, vacas_b=0 if a_gana else gana,
+                    actualizado=self.reloj()))
+                self._avanzar(c, t)
+            if p.mesa:  # con el cambio ya guardado (ver cancelar)
                 self.mesas.quitar(p.mesa)
-            gana = (p.mejor_de + 1) // 2
-            a_gana = pareja_id == p.pareja_a
-            c.execute(update(partidos).where(partidos.c.id == p.id).values(
-                estado="terminado", ganador=pareja_id, pase=True, mesa=None, tokens=None,
-                listos=None,
-                vacas_a=gana if a_gana else 0, vacas_b=0 if a_gana else gana,
-                actualizado=self.reloj()))
-            self._avanzar(c, t)
 
     # --- Jugar ----------------------------------------------------------------------------
 
@@ -269,9 +291,7 @@ class Privados:
         """Un jugador le da a "Empezar" (o se echa atrás). Cuando están los cuatro, se crea la
         mesa y empieza la partida."""
         with self._lock, self.motor.begin() as c:
-            t = self._torneo(c, codigo)
-            if t.estado != "en_curso":
-                raise ErrorMesa("El torneo no está en juego", 409)
+            t = self._en_curso(c, codigo)
             p = self._partido(c, t, partido_id)
             if p.estado == "jugando":
                 return  # ya ha empezado
@@ -297,7 +317,7 @@ class Privados:
     def entrar(self, usuario: Usuario, codigo: str, partido_id: int) -> dict:
         """Mesa y código de asiento de un jugador para su partido ya empezado."""
         with self.motor.connect() as c:
-            t = self._torneo(c, codigo)
+            t = self._en_curso(c, codigo)
             p = self._partido(c, t, partido_id)
             asientos = self._asientos(c, p) if p.pareja_a and p.pareja_b else []
         if usuario.id not in asientos:
@@ -427,6 +447,8 @@ class Privados:
         """Mueve a los ganadores por el cuadro, crea el cuadro al acabar los grupos y cierra
         el torneo al jugarse el último partido. Se puede llamar las veces que haga falta."""
         t = c.execute(select(torneos).where(torneos.c.id == t.id)).first()
+        if t.estado != "en_curso":
+            return  # cancelado (o ya terminado): nada avanza
         f = Formato.desde_dict(t.resuelto)
         todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)).all()
         if f.tipo == "grupos" and not any(p.fase == "cuadro" for p in todos):
@@ -502,6 +524,12 @@ class Privados:
             raise ErrorMesa("Ese torneo no existe (revisa el enlace de invitación)", 404)
         return t
 
+    def _en_curso(self, c, codigo: str):
+        t = self._torneo(c, codigo)
+        if t.estado != "en_curso":
+            raise ErrorMesa("El torneo no está en juego", 409)
+        return t
+
     def _abierto(self, c, codigo: str):
         t = self._torneo(c, codigo)
         if t.estado != "inscripcion" or self.reloj() >= t.fecha_limite:
@@ -522,9 +550,17 @@ class Privados:
 
     @staticmethod
     def _pareja_de(c, torneo_id: int, usuario_id: int):
+        """La pareja confirmada de ``usuario_id`` en el torneo, si la tiene."""
         return c.execute(select(parejas).where(
-            parejas.c.torneo == torneo_id,
+            parejas.c.torneo == torneo_id, parejas.c.confirmada,
             or_(parejas.c.jugador1 == usuario_id, parejas.c.jugador2 == usuario_id))).first()
+
+    @staticmethod
+    def _invitacion_de(c, torneo_id: int, usuario_id: int):
+        """La invitación sin aceptar que ha mandado ``usuario_id``, si la hay (solo una)."""
+        return c.execute(select(parejas).where(
+            parejas.c.torneo == torneo_id, parejas.c.confirmada.is_(False),
+            parejas.c.jugador1 == usuario_id)).first()
 
     @staticmethod
     def _confirmadas(c, torneo_id: int) -> int:
@@ -547,7 +583,10 @@ class Privados:
                 usuarios.c.id.in_(ids_usuarios))).all())
         jugadores = {p.id: (p.jugador1, p.jugador2) for p in filas}
         organizo = t.organizador == usuario.id
-        mia = next((p for p in filas if usuario.id in (p.jugador1, p.jugador2)), None)
+        # Mi pareja: la confirmada o la que he inscrito yo (las invitaciones recibidas, aparte).
+        mia = next((p for p in filas if p.confirmada and usuario.id in (p.jugador1, p.jugador2)),
+                   next((p for p in filas if not p.confirmada and p.jugador1 == usuario.id),
+                        None))
         # Las parejas sin confirmar solo las ven sus jugadores y el organizador.
         visibles = [p for p in filas
                     if p.confirmada or organizo or usuario.id in (p.jugador1, p.jugador2)]
