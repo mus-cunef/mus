@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from musarena.grabacion import cargar_partidas, reproducir  # noqa: E402
 from musarena.web.app import crear_app  # noqa: E402
-from musarena.web.config import Config  # noqa: E402
+from musarena.web.config import URL_CLASIFICACION, Config  # noqa: E402
 from musarena.web.mesas import GestorMesas  # noqa: E402
 from musarena.web.torneos import GestorTorneos  # noqa: E402
 
@@ -304,6 +305,20 @@ def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
     cliente = TestClient(crear_app(Config(clasificacion_url=(tmp_path / "no.json").as_uri())))
     assert cliente.get("/api/clasificacion").json()["clasificacion"][0]["puesto"] == 1
     assert Config.desde_entorno().clasificacion_url == ""  # en local, solo el archivo
+
+
+def test_instalada_con_pip_lee_las_reglas_y_la_clasificacion_publicadas(tmp_path, monkeypatch):
+    """Lejos del repositorio (``pip install``) no están ``docs/``: se usa lo publicado."""
+    reglas = tmp_path / "reglas.md"
+    reglas.write_text("# Reglas del mus (publicadas)", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MUS_REGLAS_URL", reglas.as_uri())
+    config = Config.desde_entorno()
+    assert config.clasificacion_url == URL_CLASIFICACION
+    cliente = TestClient(crear_app(replace(config, bd="sqlite://")))
+    assert cliente.get("/api/reglas").text == "# Reglas del mus (publicadas)"
+    reglas.unlink()  # ya leídas: no se vuelven a pedir
+    assert cliente.get("/api/reglas").status_code == 200
 
 
 def test_los_humanos_se_ponen_nombre(entorno):

@@ -402,10 +402,20 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     @app.get("/api/reglas", response_class=PlainTextResponse)
     def reglas() -> str:
+        """Las reglas del archivo local o, si no está (la web instalada con pip), las del
+        repositorio publicado (se leen una vez)."""
         ruta = config.ruta("reglas")
-        if not ruta.is_file():
+        if ruta.is_file():
+            return ruta.read_text(encoding="utf-8")
+        if cache.get("reglas") is None and config.reglas_url:
+            try:
+                with urllib.request.urlopen(config.reglas_url, timeout=4) as respuesta:
+                    cache["reglas"] = respuesta.read().decode("utf-8")
+            except (OSError, ValueError):
+                pass
+        if cache.get("reglas") is None:
             raise ErrorMesa("No se encuentran las reglas", 404)
-        return ruta.read_text(encoding="utf-8")
+        return cache["reglas"]
 
     # --- Página ---------------------------------------------------------------------------
 
