@@ -177,7 +177,12 @@ Principios:
   doble de lento) y cada proceso ocupa unos 35 MB.
 - **Web:** FastAPI y una página sin herramientas de compilación, **pensada para internet desde
   el principio**: solo se manda la `Observation` de cada asiento, códigos secretos detrás del
-  `#`, versión en cada jugada, chat como texto y límites (modo `MUS_PUBLICO=1`). Varios humanos
+  `#`, versión en cada jugada, chat como texto y límites (modo `MUS_PUBLICO=1`: también por
+  dirección, que detrás de Render es la última de `X-Forwarded-For`). La página lleva una CSP
+  que solo deja ejecutar scripts del propio servidor. **Los bots externos son código de otros
+  equipos**: el API solo les da su `Observation`, pero podrían saltárselo, así que se revisan en
+  su PR (lista en `bots/README.md` y filtro en `tests/test_bots_nuevos.py`), la Action que los
+  ejecuta solo puede leer y la web pública no los carga salvo con `MUS_BOTS=bots`. Varios humanos
   desde distintos dispositivos, cada uno con su enlace. Tiene que ser **rápida e intuitiva y
   sin fallos**. Los bots juegan a **velocidad media** (0,6 s por jugada) para que se entienda
   lo que pasa. Cada cambio en la web se prueba también en el navegador
@@ -245,8 +250,11 @@ Principios:
    bloqueados, guardado que se reintenta, mesas que no «resucitan» al cerrarlas) y la 3
    (`mis_descartes` ya no filtra cartas tras rebarajar, los envites fuera del catálogo van a
    una salida legal de la red, y la ronda de mus empieza de cero tras los descartes salvo para
-   la red: `como_v4=True` hasta reentrenar). Quedan la 4 (seguridad de la web pública) y la 5
-   (CI, limpieza y documentación).
+   la red: `como_v4=True` hasta reentrenar) y la 4 (seguridad de la web pública: bloqueo de
+   contraseñas por usuario y dirección, límites por dirección, chat acotado, CSP y `marked`
+   servido desde `estaticos/`, formato validado, bots de la web que no rompen la mesa, y bots
+   externos tratados como código que hay que revisar). Queda la 5 (CI, limpieza y
+   documentación).
 5. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 6. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con

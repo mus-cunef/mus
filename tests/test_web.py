@@ -396,3 +396,15 @@ def test_un_bot_que_falla_no_rompe_la_mesa(tmp_path):
             mesa.jugar(token, 0, v["version"])
     assert mesa.match.terminada
     assert any("juego al azar" in m.texto for m in mesa.match.chat.mensajes)
+
+
+def test_en_internet_no_se_ofrecen_los_bots_de_la_carpeta(monkeypatch, tmp_path):
+    from musarena.web.mesas import tipos_permitidos
+
+    monkeypatch.chdir(tmp_path)  # aunque haya .py en la carpeta desde la que se arranca
+    (tmp_path / "suelto.py").write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.setenv("MUS_PUBLICO", "1")
+    monkeypatch.delenv("MUS_BOTS", raising=False)
+    config = Config.desde_entorno()
+    assert config.carpeta_bots == ""
+    assert not any(t.endswith(".py") for t in tipos_permitidos(config))

@@ -87,7 +87,10 @@ def nombre_externo(tipo: str) -> str:
 
 
 def buscar_bots(carpeta: str | Path = "bots") -> list[str]:
-    """Archivos de bot de una carpeta (los que empiezan por ``_`` se ignoran)."""
+    """Archivos de bot de una carpeta (los que empiezan por ``_`` se ignoran). Sin carpeta
+    (``""``), ninguno: ``Path("")`` sería la carpeta actual."""
+    if not carpeta:
+        return []
     carpeta = Path(carpeta)
     if not carpeta.is_dir():
         return []

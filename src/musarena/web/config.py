@@ -79,7 +79,9 @@ class Config:
             max_partidas_torneo=_entero("MUS_MAX_PARTIDAS_TORNEO", 60 if publico else 400),
             procesos_torneo=_entero("MUS_PROCESOS_TORNEO", 2 if publico else 0),
             carpeta_partidas=os.environ.get("MUS_PARTIDAS", "partidas"),
-            carpeta_bots=os.environ.get("MUS_BOTS", "bots"),
+            # En internet, por defecto sin los bots de bots/: son código de otros equipos y el
+            # servidor guarda secretos (MUS_BD). Se activan con MUS_BOTS=bots.
+            carpeta_bots=os.environ.get("MUS_BOTS", "" if publico else "bots"),
             clasificacion=os.environ.get("MUS_CLASIFICACION", "docs/clasificacion.json"),
             clasificacion_url=os.environ.get(
                 "MUS_CLASIFICACION_URL", URL_CLASIFICACION if publico else ""),

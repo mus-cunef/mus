@@ -187,7 +187,9 @@ Las tablas se crean solas al arrancar.
 ## Modo internet
 
 `MUS_PUBLICO=1` activa límites estrictos para que un visitante no acapare el servidor: 50 mesas
-abiertas como máximo, 60 partidas por cruce en los torneos y 2 procesos por torneo. Las mesas
+abiertas como máximo, 60 partidas por cruce en los torneos y 2 procesos por torneo. Además,
+por defecto **no** se ofrecen los bots de `bots/`: son código de otros equipos y el servidor
+guarda secretos (`MUS_BD`); se pueden activar con `MUS_BOTS=bots` si se han revisado. Las mesas
 viven en memoria, así que la web se arranca con **un solo proceso** (`mus-web` ya lo hace).
 
 Variables de entorno: `MUS_PUBLICO`, `MUS_MAX_MESAS`, `MUS_MINUTOS_INACTIVA`,
