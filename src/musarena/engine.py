@@ -14,6 +14,7 @@ Las reglas implementadas están en ``docs/reglas.md``.
 from __future__ import annotations
 
 import random
+from collections.abc import Sequence
 from itertools import combinations
 
 from musarena.actions import (
@@ -60,7 +61,8 @@ from musarena.state import (
     pareja,
 )
 
-__all__ = ["nueva_partida", "legal_actions", "apply", "vacas_para_ganar", "IllegalActionError"]
+__all__ = ["nueva_partida", "legal_actions", "buscar_legal", "apply", "vacas_para_ganar",
+           "IllegalActionError"]
 
 
 def vacas_para_ganar(mejor_de: int) -> int:
@@ -131,6 +133,19 @@ def legal_actions(state: State) -> list[Action]:
     return respuestas
 
 
+def buscar_legal(legales: Sequence[Action], action: object) -> Action | None:
+    """La acción de ``legales`` que es ``action``, o ``None`` si no está.
+
+    Tiene que ser **de la misma clase** y con los mismos datos. Se devuelve el elemento de
+    ``legales``, no ``action``: así ``Envido(2.0)`` o un ``Descarte`` con un ``set`` (que son
+    iguales a una acción legal) no llegan nunca al motor con datos de otro tipo.
+    """
+    for legal in legales:
+        if type(legal) is type(action) and legal == action:
+            return legal
+    return None
+
+
 # --- Aplicar una acción -----------------------------------------------------------------------
 
 
@@ -138,12 +153,15 @@ def apply(state: State, action: Action) -> State:
     """Devuelve el estado resultante de que el jugador en turno haga ``action``.
 
     La legalidad se comprueba **antes** de copiar y modificar nada, así que una acción ilegal
-    nunca deja un estado a medias.
+    nunca deja un estado a medias. Se aplica la acción legal equivalente (ver
+    :func:`buscar_legal`), nunca el objeto recibido.
     """
-    if action not in legal_actions(state):
+    legal = buscar_legal(legal_actions(state), action)
+    if legal is None:
         raise IllegalActionError(
             f"Acción ilegal {action!r} (fase: {state.fase.value}, turno: {state.turno})"
         )
+    action = legal
     nuevo = state.copiar()
     asiento = nuevo.turno
     if nuevo.fase is Fase.MUS:

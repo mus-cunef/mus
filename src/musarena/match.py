@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from musarena.actions import Action, IllegalActionError
 from musarena.chat import CanalChat, Chat
-from musarena.engine import apply, legal_actions, nueva_partida
+from musarena.engine import apply, buscar_legal, legal_actions, nueva_partida
 from musarena.observation import Observation, observe
 from musarena.player import Player
 from musarena.state import State
@@ -75,7 +75,11 @@ class Match:
         manos_antes = len(self.state.manos_jugadas)
         observacion = self.observation(asiento)
         legales = legal_actions(self.state)
-        accion = self.players[asiento].choose_action(observacion, legales)
+        # El jugador recibe una copia: si la cambia, no cambia lo que es legal.
+        propuesta = self.players[asiento].choose_action(observacion, list(legales))
+        accion = buscar_legal(legales, propuesta)
+        if accion is None:
+            raise IllegalActionError(f"Acción ilegal {propuesta!r} del asiento {asiento}")
         self.state = apply(self.state, accion)
         if self.al_decidir is not None:
             self.al_decidir(Decision(asiento, observacion, tuple(legales), accion))
