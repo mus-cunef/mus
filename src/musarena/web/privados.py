@@ -244,40 +244,45 @@ class Privados:
             self._sortear(c, t)
 
     def cancelar(self, usuario: Usuario, codigo: str) -> None:
-        with self._lock, self.motor.begin() as c:
-            t = self._torneo(c, codigo)
-            self._solo_organizador(t, usuario)
-            if t.estado in ("terminado", "cancelado"):
-                raise ErrorMesa("El torneo ya está cerrado", 409)
-            for p in c.execute(select(partidos.c.mesa).where(partidos.c.torneo == t.id,
-                                                              partidos.c.mesa.is_not(None))):
-                self.mesas.quitar(p.mesa)
-            # Sin mesa ni códigos de asiento, ningún partido se puede seguir jugando.
-            c.execute(update(partidos).where(partidos.c.torneo == t.id,
-                                             partidos.c.estado != "terminado").values(
-                mesa=None, tokens=None, listos=None))
-            c.execute(update(torneos).where(torneos.c.id == t.id).values(estado="cancelado"))
+        with self._lock:
+            with self.motor.begin() as c:
+                t = self._torneo(c, codigo)
+                self._solo_organizador(t, usuario)
+                if t.estado in ("terminado", "cancelado"):
+                    raise ErrorMesa("El torneo ya está cerrado", 409)
+                mesas = [p.mesa for p in c.execute(select(partidos.c.mesa).where(
+                    partidos.c.torneo == t.id, partidos.c.mesa.is_not(None)))]
+                # Sin mesa ni códigos de asiento, ningún partido se puede seguir jugando.
+                c.execute(update(partidos).where(partidos.c.torneo == t.id,
+                                                 partidos.c.estado != "terminado").values(
+                    mesa=None, tokens=None, listos=None))
+                c.execute(update(torneos).where(torneos.c.id == t.id).values(estado="cancelado"))
+            # Las mesas se quitan con el cambio ya guardado: si se quitaran antes, una consulta
+            # de un jugador justo entre medias la reconstruiría desde la base de datos antigua.
+            for mesa in mesas:
+                self.mesas.quitar(mesa)
 
     def dar_ganador(self, usuario: Usuario, codigo: str, partido_id: int, pareja_id: int) -> None:
         """El organizador da un partido por ganado (por ejemplo, si una pareja no se presenta)."""
-        with self._lock, self.motor.begin() as c:
-            t = self._en_curso(c, codigo)
-            self._solo_organizador(t, usuario)
-            p = self._partido(c, t, partido_id)
-            if p.estado not in ("listo", "jugando"):
-                raise ErrorMesa("Ese partido no se puede dar por ganado ahora", 409)
-            if pareja_id not in (p.pareja_a, p.pareja_b):
-                raise ErrorMesa("Esa pareja no juega este partido")
-            if p.mesa:
+        with self._lock:
+            with self.motor.begin() as c:
+                t = self._en_curso(c, codigo)
+                self._solo_organizador(t, usuario)
+                p = self._partido(c, t, partido_id)
+                if p.estado not in ("listo", "jugando"):
+                    raise ErrorMesa("Ese partido no se puede dar por ganado ahora", 409)
+                if pareja_id not in (p.pareja_a, p.pareja_b):
+                    raise ErrorMesa("Esa pareja no juega este partido")
+                gana = (p.mejor_de + 1) // 2
+                a_gana = pareja_id == p.pareja_a
+                c.execute(update(partidos).where(partidos.c.id == p.id).values(
+                    estado="terminado", ganador=pareja_id, pase=True, mesa=None, tokens=None,
+                    listos=None,
+                    vacas_a=gana if a_gana else 0, vacas_b=0 if a_gana else gana,
+                    actualizado=self.reloj()))
+                self._avanzar(c, t)
+            if p.mesa:  # con el cambio ya guardado (ver cancelar)
                 self.mesas.quitar(p.mesa)
-            gana = (p.mejor_de + 1) // 2
-            a_gana = pareja_id == p.pareja_a
-            c.execute(update(partidos).where(partidos.c.id == p.id).values(
-                estado="terminado", ganador=pareja_id, pase=True, mesa=None, tokens=None,
-                listos=None,
-                vacas_a=gana if a_gana else 0, vacas_b=0 if a_gana else gana,
-                actualizado=self.reloj()))
-            self._avanzar(c, t)
 
     # --- Jugar ----------------------------------------------------------------------------
 

@@ -13,7 +13,7 @@ from sqlalchemy import select  # noqa: E402
 from musarena.web.app import crear_app  # noqa: E402
 from musarena.web.bd import usuarios  # noqa: E402
 from musarena.web.config import Config  # noqa: E402
-from musarena.web.mesas import GestorMesas  # noqa: E402
+from musarena.web.mesas import ErrorMesa, GestorMesas  # noqa: E402
 
 DIA = 24 * 3600
 CLAVE = "clave-secreta-1"
@@ -452,6 +452,38 @@ def test_un_torneo_cancelado_no_se_sigue_jugando(app, reloj):
     assert r.status_code == 409
     v = _ver(org, codigo)
     assert v["estado"] == "cancelado" and v["campeon"] is None
+
+
+@pytest.mark.parametrize("como", ["ganador", "cancelar"])
+def test_una_consulta_justo_al_cerrar_la_mesa_no_la_resucita(app, reloj, como):
+    """Si un jugador consulta justo cuando el organizador cierra el partido, la mesa no se
+    reconstruye desde la base de datos con el partido aún en juego."""
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    inscritas = _inscribir(app, codigo, 2)
+    org.post(f"/api/privados/{codigo}/empezar")
+    partido = _ver(org, codigo)["partidos"][0]
+    ruta = f"/api/privados/{codigo}/partidos/{partido['id']}"
+    _empezar(codigo, partido, [c for x, y, _ in inscritas for c in (x, y)])
+    a = inscritas[0][0]
+    d = a.post(f"{ruta}/entrar").json()
+    mesas = app.state.mesas
+    quitar = mesas.quitar
+
+    def quitar_y_consultar(mesa_id):
+        quitar(mesa_id)
+        try:  # la consulta de un jugador llega justo ahora
+            mesas.obtener(mesa_id)
+        except ErrorMesa:
+            pass
+
+    mesas.quitar = quitar_y_consultar
+    if como == "ganador":
+        r = org.post(f"{ruta}/ganador", json={"pareja": partido["a"]})
+    else:
+        r = org.post(f"/api/privados/{codigo}/cancelar")
+    assert r.status_code == 200
+    assert a.get(f"/api/mesas/{d['mesa']}", headers={"X-Token": d["token"]}).status_code == 404
 
 
 def test_la_partida_empieza_cuando_los_cuatro_le_dan_a_empezar(app, reloj):
