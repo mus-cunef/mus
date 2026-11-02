@@ -61,6 +61,14 @@ NOMBRE_WEB = "millosolo-mus"
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 #: Archivos de la página que llevan la versión en su dirección.
 ARCHIVOS_PAGINA = ("app.js", "estilo.css")
+#: Content-Security-Policy de la página: solo scripts del propio servidor (``marked`` va en
+#: ``estaticos/``, no en un CDN), y nada de conectarse a otros sitios ni de meterla en un marco.
+#: Los estilos en línea se permiten (la página pone algunos con ``style=``); las fuentes, de
+#: Google Fonts.
+CSP = ("default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; "
+       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+       "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+       "form-action 'self'; frame-ancestors 'none'")
 
 
 def version_pagina() -> str:
@@ -404,7 +412,8 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     @app.get("/", include_in_schema=False)
     def inicio() -> HTMLResponse:
         # no-cache: el navegador pregunta siempre si hay página nueva.
-        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache",
+                                           "Content-Security-Policy": CSP})
 
     app.mount("/estaticos", StaticFiles(directory=str(ESTATICOS)), name="estaticos")
     return app

@@ -74,6 +74,14 @@ def test_la_pagina_lleva_su_version(entorno):
     assert cliente.get("/api/opciones").headers["X-Mus-Version"] == version
 
 
+def test_la_pagina_no_carga_scripts_de_fuera(entorno):
+    cliente, *_ = entorno
+    r = cliente.get("/")
+    assert "script-src 'self'" in r.headers["Content-Security-Policy"]
+    assert "cdn." not in r.text and "/estaticos/marked.min.js" in r.text
+    assert cliente.get("/estaticos/marked.min.js").status_code == 200
+
+
 def test_reglas_y_clasificacion(entorno):
     cliente, *_ = entorno
     assert "Reglas del mus" in cliente.get("/api/reglas").text
