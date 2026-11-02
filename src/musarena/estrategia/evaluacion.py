@@ -1,4 +1,4 @@
-"""Probabilidad de ganar un lance, respuesta del rival, bonus esperados y probabilidad de vaca."""
+"""Probabilidad de ganar un lance, bonus esperados y probabilidad de vaca."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ from collections.abc import Collection, Sequence
 
 import numpy as np
 
-from musarena.actions import Quiero
 from musarena.cards import Carta
-from musarena.estrategia.creencias import Creencias, ModeloRival, verosimilitud_por_tipo
+from musarena.estrategia.creencias import Creencias
 from musarena.estrategia.tipos import BONUS_JUEGO, BONUS_PARES, N_NIVELES, NIVEL, indice_de
 from musarena.hands import Lance, orden_desde_mano
 from musarena.state import TANTOS_VACA, pareja
@@ -62,55 +61,6 @@ def prob_ganar_lance(
             casos *= hasta[fila + 1:].prod(axis=0)  # los que hablan después, peor o igual
         resultado += casos.sum()
     return float(resultado)
-
-
-def respuesta_rival(
-    lance: Lance,
-    asiento: int,
-    cartas: Sequence[Carta],
-    mano: int,
-    participantes: Collection[int],
-    creencias: Creencias,
-    modelo: ModeloRival,
-    apuesta: int,
-    ordago: bool = False,
-    faltan: int = TANTOS_VACA,
-    modelos: dict[int, ModeloRival] | None = None,
-) -> tuple[float, float]:
-    """Qué pasa si la pareja de ``asiento`` apuesta: ``(prob. de que quieran, prob. de ganar si
-    quieren)``.
-
-    Responde primero el rival más cercano a la mano y, si no quiere, su compañero. Cada uno
-    quiere con una probabilidad que depende de la fuerza de su mano (ver
-    :func:`~musarena.estrategia.creencias.verosimilitud`), así que "si me quieren" es una mala
-    noticia: la probabilidad de ganar se recalcula con las creencias condicionadas a que el
-    rival quiere.
-
-    ``faltan`` son los tantos que le faltan a la pareja más adelantada (un envite que decide la
-    vaca se quiere como un órdago). ``modelos`` permite un modelo distinto por rival, por
-    ejemplo con lo aprendido de cada uno; los que falten usan ``modelo``.
-    """
-    mia = pareja(asiento)
-    rivales = [s for s in orden_desde_mano(mano) if s in participantes and pareja(s) != mia]
-    modelos = modelos or {}
-
-    casos: list[tuple[float, float]] = []  # (probabilidad del caso, prob. de ganar en ese caso)
-    prob_llegar = 1.0  # probabilidad de que los rivales anteriores no hayan querido
-    condicion: dict[int, np.ndarray] = {}
-    for rival in rivales:
-        m = modelos.get(rival, modelo)
-        quiere = verosimilitud_por_tipo(Quiero(), lance, m, ordago, apuesta, faltan)
-        no_quiere = 1 - quiere
-        q = creencias.esperanza(rival, quiere)
-        condicionadas = creencias.condicionar({**condicion, rival: quiere})
-        ganar = prob_ganar_lance(lance, asiento, cartas, mano, participantes, condicionadas)
-        casos.append((prob_llegar * q, ganar))
-        prob_llegar *= 1 - q
-        condicion[rival] = no_quiere
-    prob_quieren = sum(p for p, _ in casos)
-    if prob_quieren <= 0:
-        return 0.0, 0.0
-    return prob_quieren, sum(p * g for p, g in casos) / prob_quieren
 
 
 def bonus_pareja(

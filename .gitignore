@@ -19,9 +19,6 @@ htmlcov/
 # Documentación
 site/
 
-# Web
-web/py.zip
-
 # Modelos de bots entrenados y datos de entrenamiento
 # (el modelo que se publica va en src/musarena/ia/modelos/, que sí se sube)
 checkpoints/

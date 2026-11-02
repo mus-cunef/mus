@@ -385,12 +385,6 @@ class GestorMesas:
             raise ErrorMesa("La mesa no existe o se ha cerrado por inactividad", 404)
         return mesa
 
-    def poner(self, mesa: Mesa) -> Mesa:
-        """Añade una mesa creada fuera (las de los torneos privados no cuentan en el límite)."""
-        self.limpiar()
-        with self._lock:
-            return self._mesas.setdefault(mesa.id, mesa)
-
     def quitar(self, mesa_id: str) -> None:
         with self._lock:
             self._mesas.pop(mesa_id, None)
