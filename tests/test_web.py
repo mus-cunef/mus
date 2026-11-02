@@ -191,6 +191,26 @@ def test_chat(entorno):
     assert len(largo.json()["chat"][-1]["texto"]) <= 200
 
 
+def test_el_chat_no_se_puede_inundar(entorno):
+    cliente, mesas, reloj, _ = entorno
+    datos = _crear(cliente, ("humano", "random", "humano", "random"))
+    mesa_id, t0 = datos["mesa"], datos["asientos"][0]["token"]
+
+    def escribir(texto):
+        return cliente.post(f"/api/mesas/{mesa_id}/chat", headers={"X-Token": t0},
+                            json={"texto": texto})
+
+    for i in range(10):
+        assert escribir(f"mensaje {i}").status_code == 200
+    assert escribir("uno más").status_code == 429  # demasiado deprisa
+    reloj.t += 60
+    for i in range(120):  # al ritmo permitido, el chat guarda solo los últimos 100
+        reloj.t += 6
+        assert escribir(f"lento {i}").status_code == 200
+    chat = _ver(cliente, mesa_id, t0).json()["chat"]
+    assert len(chat) == 100 and chat[-1]["texto"] == "lento 119"
+
+
 def test_limite_de_mesas_y_caducidad(entorno):
     cliente, mesas, reloj, _ = entorno
     for _ in range(5):

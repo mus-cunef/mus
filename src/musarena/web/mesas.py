@@ -38,6 +38,7 @@ from musarena.players import BOTS, OPCIONES
 from musarena.players.externos import buscar_bots, es_bot_externo, nombre_externo
 from musarena.state import nombre_jugador
 from musarena.web.config import Config
+from musarena.web.limites import Ventana
 from musarena.web.vista import vista
 
 HUMANO = "humano"
@@ -46,6 +47,8 @@ log = logging.getLogger(__name__)
 
 #: Longitud máxima del nombre que se pone un humano.
 MAX_NOMBRE = 20
+#: Mensajes de chat por asiento y minuto como máximo.
+MENSAJES_POR_MINUTO = 10
 
 
 def limpiar_nombre(nombre: object) -> str | None:
@@ -152,6 +155,7 @@ class Mesa:
         self.sin_guardar = False
         self._manos_archivadas = 0
         self.lock = threading.Lock()
+        self._mensajes_por_asiento = Ventana(MENSAJES_POR_MINUTO, 60, self.reloj)
         self.ultima_actividad = self.reloj()
         self.proxima_jugada_bot = self.reloj() + self.pausa
 
@@ -271,6 +275,8 @@ class Mesa:
     def escribir(self, token: str, texto: str) -> None:
         asiento = self.asiento_de(token)
         texto = str(texto)[: self.config.max_chat]
+        if not self._mensajes_por_asiento.permitir(str(asiento)):
+            raise ErrorMesa("Estás escribiendo demasiado deprisa; espera un poco", 429)
         with self.lock:
             self.ultima_actividad = self.reloj()
             if self.match.chat.escribir(asiento, texto) is not None:
