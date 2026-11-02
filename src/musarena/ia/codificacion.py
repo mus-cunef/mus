@@ -25,8 +25,6 @@ Solo usa la :class:`~musarena.observation.Observation`: nunca información ocult
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
 
 from musarena.actions import (
@@ -62,7 +60,6 @@ _RESULTADOS = (TipoResultado.EN_PASO, TipoResultado.QUERIDO, TipoResultado.NO_QU
                TipoResultado.SIN_APUESTA)
 _OTROS = (1, 2, 3)  # asientos relativos: rival derecha, compañero, rival izquierda
 _NOMBRE_RELATIVO = {0: "yo", 1: "rival_der", 2: "companero", 3: "rival_izq"}
-_DESCARTE_N = re.compile(r"(\d+)")
 
 
 class _Vector:
@@ -80,10 +77,6 @@ class _Vector:
     def one_hot(self, nombre: str, opciones: tuple, valor: object) -> None:
         for o in opciones:
             self.add(f"{nombre}={getattr(o, '__name__', o)}", valor == o)
-
-
-def _relativo(asiento: int, yo: int) -> int:
-    return (asiento - yo) % 4
 
 
 def _codificar(obs: Observation, v: _Vector, creencias: Creencias | None) -> None:
@@ -158,10 +151,10 @@ def _codificar(obs: Observation, v: _Vector, creencias: Creencias | None) -> Non
     descartes = {}
     rondas = 0
     for e in obs.historial:
-        if e.asiento is not None and e.accion is None and e.texto.startswith("Se descarta"):
+        if e.descartadas is not None:
             if e.asiento == obs.mano:
                 rondas += 1
-            descartes[e.asiento] = int(_DESCARTE_N.search(e.texto).group(1))
+            descartes[e.asiento] = e.descartadas
     for rel in _OTROS:
         v.add(f"{_NOMBRE_RELATIVO[rel]}_descarto", descartes.get((yo + rel) % 4, 0) / 4)
     v.add("rondas_de_descarte", min(rondas, 3) / 3)

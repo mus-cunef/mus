@@ -57,9 +57,8 @@ def contar(args: tuple[int, int]) -> np.ndarray:
                 match.step()
                 evento = match.state.historial[antes] if len(match.state.historial) > antes \
                     else None
-                if evento is not None and evento.texto.startswith("Se descarta"):
-                    n = int(evento.texto.split()[3])
-                    cuentas[n, indice_de(match.state.cartas[asiento])] += 1
+                if evento is not None and evento.descartadas is not None:
+                    cuentas[evento.descartadas, indice_de(match.state.cartas[asiento])] += 1
             else:
                 match.step()
     return cuentas

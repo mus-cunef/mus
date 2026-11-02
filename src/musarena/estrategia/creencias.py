@@ -148,8 +148,7 @@ def ronda_de_mus(historial: Sequence[Evento], como_v4: bool = False) -> list[Eve
 
 
 def _es_descarte(evento: Evento) -> bool:
-    return (evento.asiento is not None and evento.accion is None
-            and evento.texto.startswith("Se descarta de "))
+    return evento.descartadas is not None
 
 
 def ultimos_descartes(historial: Sequence[Evento]) -> dict[int, int]:
@@ -157,7 +156,7 @@ def ultimos_descartes(historial: Sequence[Evento]) -> dict[int, int]:
     ultimos: dict[int, int] = {}
     for evento in historial:
         if _es_descarte(evento):
-            ultimos[evento.asiento] = int(evento.texto.split()[3])
+            ultimos[evento.asiento] = evento.descartadas
     return ultimos
 
 
@@ -231,16 +230,6 @@ class Creencias:
             elif isinstance(accion, Reenvido):
                 apostado[lance] = apostado.get(lance, 0) + accion.tantos
         return cls(obs.asiento, w)
-
-    def condicionar(self, factores: dict[int, np.ndarray]) -> Creencias:
-        """Nuevas creencias multiplicando los pesos de algunos jugadores por ``factores``.
-
-        Sirve para preguntar "¿y si este rival me quiere?": se multiplica su distribución por la
-        verosimilitud de querer con cada tipo de mano.
-        """
-        nuevos = {otro: p * factores[otro] if otro in factores else p
-                  for otro, p in self._p.items()}
-        return Creencias(self.asiento, nuevos)
 
     def probabilidades(self, asiento: int) -> np.ndarray:
         """Probabilidad de cada tipo de mano para ``asiento`` (suma 1)."""

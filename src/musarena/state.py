@@ -76,6 +76,8 @@ class Evento:
     texto: str
     accion: Action | None = None
     lance: Lance | None = None
+    #: En un descarte, de cuántas cartas (para no tener que leerlo del texto).
+    descartadas: int | None = None
 
 
 @dataclass(frozen=True)

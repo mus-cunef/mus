@@ -242,7 +242,8 @@ def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     pila = set(s.baraja.descartes)
     s.tiradas = [[c for c in t if c in pila] for t in s.tiradas]
     n = len(descartadas)
-    s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
+    s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}",
+                                descartadas=n))
     s.descartes_hechos += 1
     if s.descartes_hechos == 4:
         s.fase = Fase.MUS
