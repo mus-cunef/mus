@@ -36,14 +36,19 @@ jobs:
           cache: pip
       - name: Instalar
         run: pip install -e ".[docs]"
+      # El número de partidas llega como variable (no pegado en el comando) y se comprueba que
+      # sea un número: así nada de lo que se escriba en el formulario se ejecuta.
       - name: Jugar el torneo
-        run: >
-          mus-torneo -n ${{ github.event.inputs.partidas || '100' }} -p 0
-          --markdown docs/clasificacion.md --json docs/clasificacion.json
+        env:
+          PARTIDAS: ${{ github.event.inputs.partidas || '100' }}
+        run: |
+          [[ "$PARTIDAS" =~ ^[0-9]+$ ]] || { echo "Partidas por cruce no es un número"; exit 1; }
+          mus-torneo -n "$PARTIDAS" -p 0 --markdown docs/clasificacion.md \
+            --json docs/clasificacion.json
       - name: Clasificación en el resumen de la ejecución
         run: cat docs/clasificacion.md >> "$GITHUB_STEP_SUMMARY"
       - name: Construir la documentación
-        run: mkdocs build
+        run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

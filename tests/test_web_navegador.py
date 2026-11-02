@@ -2,12 +2,14 @@
 
 Juegan partidas completas haciendo clic, como una persona, y comprueban que no hay errores de
 JavaScript y que nunca aparecen en pantalla las cartas de los demás. Se saltan si no están
-Playwright y Chrome (en la CI no se instalan; se pasan en local antes de cada PR de la web):
+Playwright y Chrome; la CI los pasa en un trabajo propio, con ``MUS_EXIGIR_NAVEGADOR=1`` para
+que no poder abrir Chrome sea un fallo y no un test omitido:
 
-    pip install playwright      # usa el Chrome ya instalado
+    pip install -e ".[e2e]"     # usa el Chrome ya instalado
     pytest tests/test_web_navegador.py
 """
 
+import os
 import socket
 import threading
 import time
@@ -58,6 +60,8 @@ def navegador():
         try:
             b = p.chromium.launch(channel="chrome", headless=True)
         except Exception as e:  # sin Chrome instalado
+            if os.environ.get("MUS_EXIGIR_NAVEGADOR"):
+                raise
             pytest.skip(f"No se puede abrir Chrome: {e}")
         yield b
         b.close()
