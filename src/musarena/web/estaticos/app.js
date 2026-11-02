@@ -132,6 +132,7 @@ function mostrar() {
   }
   if (vista !== "mesa") Mesa.parar();
   if (vista !== "t") Privado.parar();
+  if (vista !== "torneo") Torneo.parar();
   if (vista === "inicio") Inicio.abrir();
   if (vista === "mesa") Mesa.abrir(partes[0], partes[1]);
   if (vista === "torneo") Torneo.abrir();
@@ -234,7 +235,7 @@ async function copiar(texto, boton, alternativa) {
 
 const Mesa = {
   id: null, token: null, v: null, temporizador: null, seleccion: new Set(),
-  resumenVisto: 0, enviando: false, fallos: 0,
+  resumenVisto: 0, enviando: false, fallos: 0, jugadas: 0,
 
   abrir(id, token) {
     if (!id || !token) { location.hash = "#/"; return; }
@@ -256,10 +257,13 @@ const Mesa = {
   },
 
   async refrescar() {
+    const jugadas = this.jugadas;
     try {
       const v = await api("GET", `/api/mesas/${this.id}`, undefined, this.token);
       this.fallos = 0;
-      this.pintar(v);
+      // Una consulta lenta que salió antes de una jugada trae la mesa de antes: no se pinta
+      // encima de la respuesta a la jugada.
+      if (this.jugadas === jugadas) this.pintar(v);
       this.aviso("", true);  // vuelve la conexión: se quita el aviso
     } catch (e) {
       this.fallos++;
@@ -278,6 +282,7 @@ const Mesa = {
     this.bloquearAcciones();
     try {
       const v = await api("POST", `/api/mesas/${this.id}/jugar`, { accion: accionId, version: this.v.version }, this.token);
+      this.jugadas++;
       this.seleccion.clear();
       this.pintar(v);
     } catch (e) {
@@ -545,7 +550,13 @@ const Mesa = {
 // --- Torneo ---------------------------------------------------------------------------
 
 const Torneo = {
-  cargado: false, temporizador: null,
+  cargado: false, temporizador: null, seguido: null,
+
+  parar() {
+    clearTimeout(this.temporizador);
+    this.temporizador = null;
+    this.seguido = null;  // una consulta que esté en camino ya no sigue preguntando
+  },
 
   async abrir() {
     if (!this.cargado) {
@@ -577,20 +588,28 @@ const Torneo = {
     const participantes = [...document.querySelectorAll("#participantes input:checked")].map((i) => i.value);
     if (participantes.length < 2) { this.error("Elige al menos 2 participantes."); return; }
     const partidas = Number($("#partidas-torneo").value);
+    const boton = $("#lanzar-torneo");
+    if (boton.disabled) return;
+    boton.disabled = true;  // un doble clic no lanza dos peticiones
     try {
       const estado = await api("POST", "/api/torneos", { participantes, partidas });
       this.seguir(estado.id);
-    } catch (e) { this.error(e.message); }
+    } catch (e) {
+      this.error(e.message);
+      boton.disabled = false;
+    }
   },
 
   seguir(id) {
-    clearTimeout(this.temporizador);
+    this.parar();
+    const seguido = this.seguido = {};  // un solo bucle de consultas: el último que empezó
     $("#lanzar-torneo").disabled = true;
     $("#progreso-torneo").hidden = false;
     $("#resultado-torneo").replaceChildren();
     const paso = async () => {
       try {
         const estado = await api("GET", `/api/torneos/${id}`);
+        if (this.seguido !== seguido) return;  // se ha salido de la página o hay otro bucle
         $("#barra-progreso").style.width = `${Math.round(estado.progreso * 100)}%`;
         $("#texto-progreso").textContent = `Jugando: ${estado.hechas} de ${estado.total} partidas`;
         if (estado.estado === "jugando") { this.temporizador = setTimeout(paso, 400); return; }
@@ -599,6 +618,7 @@ const Torneo = {
         if (estado.estado === "error") { this.error(estado.error); return; }
         pintarResultado(estado.resultado, $("#resultado-torneo"));
       } catch (e) {
+        if (this.seguido !== seguido) return;
         this.error(e.message);
         $("#lanzar-torneo").disabled = false;
       }
