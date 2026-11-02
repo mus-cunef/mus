@@ -190,8 +190,7 @@ print(enfrentar(prueba, "reglas", partidas=1000))
   - el percentil y el valor de la mano;
   - la fuerza en cada lance;
   - la probabilidad de vaca;
-  - la tasa de farol de cada rival;
-  - la respuesta esperada del rival (`respuesta_rival`).
+  - la tasa de farol de cada rival.
 - **Un rival de nivel** contra el que entrenar y medirse: `reglas`, con tres estilos distintos.
 - **Velocidad**: el análisis usa numpy. Una partida entre bots `reglas` tarda unos 0,1 s por
   núcleo, y la arena puede repartirse entre varios procesos.

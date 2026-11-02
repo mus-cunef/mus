@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from musarena.grabacion import cargar_partidas, reproducir  # noqa: E402
 from musarena.web.app import crear_app  # noqa: E402
-from musarena.web.config import Config  # noqa: E402
+from musarena.web.config import URL_CLASIFICACION, Config  # noqa: E402
 from musarena.web.mesas import GestorMesas  # noqa: E402
 from musarena.web.torneos import GestorTorneos  # noqa: E402
 
@@ -149,22 +150,20 @@ def test_partida_entera_por_la_api_sin_ver_cartas_ajenas(entorno):
 
 def test_jugadas_rechazadas(entorno):
     cliente, *_ = entorno
-    datos = _crear(cliente, ("humano", "random", "humano", "random"))
+    datos = _crear(cliente, ("humano",) * 4)  # siempre le toca a un humano
     mesa_id = datos["mesa"]
-    t0, t2 = datos["asientos"][0]["token"], datos["asientos"][2]["token"]
-    v = _ver(cliente, mesa_id, t0).json()
-    a_quien = v["turno"]
-    token_turno, token_otro = (t0, t2) if a_quien == 0 else (t2, t0)
+    tokens = [a["token"] for a in datos["asientos"]]
+    a_quien = _ver(cliente, mesa_id, tokens[0]).json()["turno"]
+    token_turno, token_otro = tokens[a_quien], tokens[(a_quien + 1) % 4]
     version = _ver(cliente, mesa_id, token_turno).json()["version"]
     jugar = lambda token, accion, version: cliente.post(  # noqa: E731
         f"/api/mesas/{mesa_id}/jugar", headers={"X-Token": token},
         json={"accion": accion, "version": version})
-    if a_quien in (0, 2):
-        assert jugar(token_otro, 0, version).status_code == 409  # no es su turno
-        assert jugar(token_turno, 99, version).status_code == 400  # no existe esa jugada
-        assert jugar(token_turno, 0, version + 7).status_code == 409  # versión vieja
-        assert jugar(token_turno, 0, version).status_code == 200
-        assert jugar(token_turno, 0, version).status_code == 409  # el doble clic no cuenta
+    assert jugar(token_otro, 0, version).status_code == 409  # no es su turno
+    assert jugar(token_turno, 99, version).status_code == 400  # no existe esa jugada
+    assert jugar(token_turno, 0, version + 7).status_code == 409  # versión vieja
+    assert jugar(token_turno, 0, version).status_code == 200
+    assert jugar(token_turno, 0, version).status_code == 409  # el doble clic no cuenta
     assert jugar("", 0, version).status_code == 403
 
 
@@ -285,12 +284,18 @@ def test_solo_un_torneo_a_la_vez():
     with pytest.raises(Exception, match="Ya hay un torneo"):
         torneos.lanzar(["random", "basico"], 4)
     soltar.set()
-    for _ in range(100):
-        if primero.estado != "jugando":
-            break
-        time.sleep(0.02)
+    _hasta_que_acabe(primero)
     assert primero.estado == "terminado"
-    assert torneos.lanzar(["random", "basico"], 4).estado in ("jugando", "terminado")
+    # Acabado el primero, se puede lanzar otro (también falso: el test no deja nada corriendo).
+    _hasta_que_acabe(torneos.lanzar(["random", "basico"], 4))
+
+
+def _hasta_que_acabe(torneo):
+    for _ in range(250):
+        if torneo.estado != "jugando":
+            return
+        time.sleep(0.02)
+    raise AssertionError("El torneo no ha terminado")
 
 
 def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
@@ -304,6 +309,20 @@ def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
     cliente = TestClient(crear_app(Config(clasificacion_url=(tmp_path / "no.json").as_uri())))
     assert cliente.get("/api/clasificacion").json()["clasificacion"][0]["puesto"] == 1
     assert Config.desde_entorno().clasificacion_url == ""  # en local, solo el archivo
+
+
+def test_instalada_con_pip_lee_las_reglas_y_la_clasificacion_publicadas(tmp_path, monkeypatch):
+    """Lejos del repositorio (``pip install``) no están ``docs/``: se usa lo publicado."""
+    reglas = tmp_path / "reglas.md"
+    reglas.write_text("# Reglas del mus (publicadas)", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MUS_REGLAS_URL", reglas.as_uri())
+    config = Config.desde_entorno()
+    assert config.clasificacion_url == URL_CLASIFICACION
+    cliente = TestClient(crear_app(replace(config, bd="sqlite://")))
+    assert cliente.get("/api/reglas").text == "# Reglas del mus (publicadas)"
+    reglas.unlink()  # ya leídas: no se vuelven a pedir
+    assert cliente.get("/api/reglas").status_code == 200
 
 
 def test_los_humanos_se_ponen_nombre(entorno):

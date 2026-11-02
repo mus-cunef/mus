@@ -2,12 +2,14 @@
 
 Juegan partidas completas haciendo clic, como una persona, y comprueban que no hay errores de
 JavaScript y que nunca aparecen en pantalla las cartas de los demás. Se saltan si no están
-Playwright y Chrome (en la CI no se instalan; se pasan en local antes de cada PR de la web):
+Playwright y Chrome; la CI los pasa en un trabajo propio, con ``MUS_EXIGIR_NAVEGADOR=1`` para
+que no poder abrir Chrome sea un fallo y no un test omitido:
 
-    pip install playwright      # usa el Chrome ya instalado
+    pip install -e ".[e2e]"     # usa el Chrome ya instalado
     pytest tests/test_web_navegador.py
 """
 
+import os
 import socket
 import threading
 import time
@@ -58,6 +60,8 @@ def navegador():
         try:
             b = p.chromium.launch(channel="chrome", headless=True)
         except Exception as e:  # sin Chrome instalado
+            if os.environ.get("MUS_EXIGIR_NAVEGADOR"):
+                raise
             pytest.skip(f"No se puede abrir Chrome: {e}")
         yield b
         b.close()
@@ -204,6 +208,34 @@ def test_torneo_clasificacion_y_reglas(servidor, pagina):
     pagina.wait_for_selector("#clasificacion table.datos")
     pagina.goto(url + "/#/reglas")
     pagina.wait_for_selector("#reglas h1")
+    assert pagina.errores == [], pagina.errores
+
+
+def test_el_torneo_deja_de_consultar_al_salir_de_la_pagina(servidor, pagina):
+    url, _, _ = servidor
+    consultas = []
+    pagina.on("request", lambda r: consultas.append(time.monotonic())
+              if "/api/torneos/" in r.url and r.url.split("/")[-1] not in
+              ("participantes", "en-marcha") else None)
+    pagina.goto(url + "/#/torneo")
+    pagina.wait_for_selector("#participantes input", state="attached")
+    for casilla in pagina.query_selector_all("#participantes input"):
+        if casilla.get_attribute("value") not in ("random", "basico", "reglas"):
+            casilla.uncheck()
+    pagina.fill("#partidas-torneo", "20")  # 60 partidas: tarda unos segundos
+    pagina.click("#lanzar-torneo")
+    pagina.wait_for_selector("#progreso-torneo:not([hidden])")
+    pagina.click(".barra nav a[data-ruta='reglas']")
+    pagina.wait_for_selector("#reglas h1")
+    pagina.wait_for_timeout(600)  # la consulta que estuviera en camino
+    antes = len(consultas)
+    pagina.wait_for_timeout(1500)
+    assert len(consultas) == antes  # fuera de la página no se pregunta
+    # Al volver se sigue el torneo con un solo bucle (unas 2-3 consultas por segundo).
+    pagina.click(".barra nav a[data-ruta='torneo']")
+    pagina.wait_for_timeout(2000)
+    assert len(consultas) - antes <= 7
+    pagina.wait_for_selector("#resultado-torneo table.datos", timeout=120000)
     assert pagina.errores == [], pagina.errores
 
 

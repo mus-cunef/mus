@@ -14,6 +14,8 @@ from pathlib import Path
 
 #: La clasificación que publica la Action del torneo en la documentación.
 URL_CLASIFICACION = "https://mus-cunef.github.io/mus/clasificacion.json"
+#: Las reglas oficiales en el repositorio (si la web no arranca desde una copia de él).
+URL_REGLAS = "https://raw.githubusercontent.com/mus-cunef/mus/main/docs/reglas.md"
 
 
 def _entero(nombre: str, defecto: int) -> int:
@@ -56,8 +58,9 @@ class Config:
     #: Dónde se publica la clasificación actualizada (la Action la sube a GitHub Pages cada vez
     #: que se fusiona algo y cada lunes). Vacío = usar solo el archivo local.
     clasificacion_url: str = ""
-    #: Archivo con las reglas.
+    #: Archivo con las reglas y, si no está (la web instalada con pip), de dónde leerlas.
     reglas: str = "docs/reglas.md"
+    reglas_url: str = ""
     #: Base de datos de las cuentas y los torneos privados (URL de SQLAlchemy). En internet
     #: tiene que ser externa (PostgreSQL), porque el disco del servidor se borra al reiniciar.
     bd: str = "sqlite://"  # en memoria (tests); mus-web usa un archivo (desde_entorno)
@@ -72,6 +75,7 @@ class Config:
     @classmethod
     def desde_entorno(cls) -> Config:
         publico = os.environ.get("MUS_PUBLICO", "0") == "1"
+        clasificacion = os.environ.get("MUS_CLASIFICACION", "docs/clasificacion.json")
         return cls(
             publico=publico,
             max_mesas=_entero("MUS_MAX_MESAS", 50 if publico else 200),
@@ -82,10 +86,13 @@ class Config:
             # En internet, por defecto sin los bots de bots/: son código de otros equipos y el
             # servidor guarda secretos (MUS_BD). Se activan con MUS_BOTS=bots.
             carpeta_bots=os.environ.get("MUS_BOTS", "" if publico else "bots"),
-            clasificacion=os.environ.get("MUS_CLASIFICACION", "docs/clasificacion.json"),
+            clasificacion=clasificacion,
+            # La publicada; en local, solo si no hay una copia del repositorio (pip install).
             clasificacion_url=os.environ.get(
-                "MUS_CLASIFICACION_URL", URL_CLASIFICACION if publico else ""),
+                "MUS_CLASIFICACION_URL",
+                URL_CLASIFICACION if publico or not Path(clasificacion).is_file() else ""),
             reglas=os.environ.get("MUS_REGLAS", "docs/reglas.md"),
+            reglas_url=os.environ.get("MUS_REGLAS_URL", URL_REGLAS),
             bd=_url_bd(os.environ.get("MUS_BD", "sqlite:///mus_web.db")),
             organizadores=tuple(n.strip() for n in os.environ.get("MUS_ORGANIZADORES", "")
                                 .split(",") if n.strip()),

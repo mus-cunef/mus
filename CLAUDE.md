@@ -45,7 +45,7 @@ siempre el porqué de las decisiones.
 | 4.2 | Clasificación publicada y actualizada automáticamente | 0.5 | Hecho: la Action `documentacion.yml` juega el torneo y la publica en https://mus-cunef.github.io/mus/clasificacion/ (y la web la lee de ahí) |
 | C.1 | Repo público y ordenado (README, LICENSE, .gitignore) | 0.5 | Hecho |
 | C.2 | Ramas y PRs, y **`main` protegida** | 0.5 | Hecho: `main` protegida (PR obligatoria y CI en verde) |
-| C.3 | Tests automáticos en cada PR | 0.5 | Hecho |
+| C.3 | Tests automáticos en cada PR | 0.5 | Hecho: lint y tests en Python 3.10 a 3.14, el navegador (Chrome) y el entrenamiento (PyTorch) |
 
 Uso de IA (enunciado, 5.8): permitido para código, tests y documentación, **solo con herramientas
 gratuitas o con licencia de la universidad**; todo tiene que poder explicarse en la defensa. Confirmado: la
@@ -253,8 +253,13 @@ Principios:
    la red: `como_v4=True` hasta reentrenar) y la 4 (seguridad de la web pública: bloqueo de
    contraseñas por usuario y dirección, límites por dirección, chat acotado, CSP y `marked`
    servido desde `estaticos/`, formato validado, bots de la web que no rompen la mesa, y bots
-   externos tratados como código que hay que revisar). Queda la 5 (CI, limpieza y
-   documentación).
+   externos tratados como código que hay que revisar) y la 5 (la CI pasa también los tests del
+   navegador y los del entrenamiento; código sin uso fuera; el número de cartas de un descarte
+   va en `Evento.descartadas`; `mus-web` instalado con pip lee lo publicado; tests de reglas en
+   `tests/test_reglas.py`, y los hallazgos bajos baratos). **Auditoría terminada.** Quedan,
+   a propósito: B1 (repartos duplicados tras rebarajar: cambiarlo cambiaría todas las medidas
+   apuntadas), B7 (scrypt más caro: Render gratis tiene poca memoria), B8, B12, B13, B16, B17
+   y B20 (proteger `main` también para administradores: es un ajuste de GitHub).
 5. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 6. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con

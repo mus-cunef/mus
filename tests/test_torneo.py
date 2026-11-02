@@ -3,7 +3,14 @@ import json
 import pytest
 
 from musarena.arena import enfrentar
-from musarena.players.externos import buscar_bots, cargar_clase, es_bot_externo, nombre_externo
+from musarena.player import Player
+from musarena.players.externos import (
+    buscar_bots,
+    cargar_clase,
+    crear_externo,
+    es_bot_externo,
+    nombre_externo,
+)
 from musarena.torneo import ResultadoTorneo, jugar_torneo, main, participantes_por_defecto
 
 BOT_EXTERNO = '''
@@ -46,6 +53,33 @@ def test_un_archivo_de_bot_que_no_vale(tmp_path):
         cargar_clase(str(vacio))
     with pytest.raises(ValueError):
         cargar_clase(str(tmp_path / "no_existe.py"))
+
+
+def test_un_bot_se_crea_con_lo_que_acepta_su_constructor(tmp_path):
+    archivo = tmp_path / "constructores.py"
+    archivo.write_text('''
+from musarena.player import Player
+
+class SinNada(Player):
+    def __init__(self):
+        super().__init__()
+    def choose_action(self, observation, legal_actions):
+        return legal_actions[0]
+
+class SoloSemilla(SinNada):
+    def __init__(self, seed=None):
+        super().__init__()
+        self.semilla = seed
+
+class Roto(SinNada):
+    def __init__(self, nombre=None, seed=None):
+        raise TypeError("fallo del propio bot")
+''', encoding="utf-8")
+    ruta = str(archivo)
+    assert isinstance(crear_externo(ruta + ":SinNada", seed=5), Player)
+    assert crear_externo(ruta + ":SoloSemilla", seed=5, nombre="x").semilla == 5
+    with pytest.raises(TypeError, match="fallo del propio bot"):  # no se crea sin semilla
+        crear_externo(ruta + ":Roto", seed=5)
 
 
 def test_el_bot_de_ejemplo_de_la_carpeta_bots():

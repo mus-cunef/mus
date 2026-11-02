@@ -21,6 +21,7 @@ from musarena.grabacion import CARPETA_POR_DEFECTO, Grabador
 from musarena.match import Match
 from musarena.player import Player
 from musarena.players import OPCIONES, HumanTerminalPlayer, crear_jugador, es_tipo_valido
+from musarena.players.externos import es_bot_externo
 from musarena.players.human_terminal import lineas_resumen
 from musarena.state import nombre_jugador, nombre_pareja
 
@@ -95,7 +96,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     tipos = None
     if args.jugadores:
-        tipos = [t.strip().lower() for t in args.jugadores.split(",")]
+        # Los archivos de bot conservan las mayúsculas (bots/MiBot.py no es bots/mibot.py en Linux).
+        tipos = [t.strip() if es_bot_externo(t.strip()) else t.strip().lower()
+                 for t in args.jugadores.split(",")]
         if len(tipos) != 4 or not all(es_tipo_valido(t) for t in tipos):
             parser.error(f"--jugadores necesita 4 tipos de entre: {', '.join(OPCIONES)}")
 

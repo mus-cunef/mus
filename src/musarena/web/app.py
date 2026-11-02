@@ -30,12 +30,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import time
 import urllib.request
 from collections.abc import Callable
 from importlib import resources
+from typing import Annotated
 
-from fastapi import Cookie, FastAPI, Header, Request, Response
+from fastapi import Cookie, FastAPI, Header, Path, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -57,6 +59,9 @@ from musarena.web.torneos import GestorTorneos
 COOKIE = "mus_sesion"
 #: Nombre de la web publicada (el proyecto se sigue llamando Mus Arena).
 NOMBRE_WEB = "millosolo-mus"
+#: Un id de la base de datos (entero de 32 bits en PostgreSQL): uno enorme no llega a la consulta.
+MAX_ID = 2**31 - 1
+Id = Annotated[int, Path(ge=1, le=MAX_ID)]
 
 ESTATICOS = resources.files("musarena.web") / "estaticos"
 #: Archivos de la página que llevan la versión en su dirección.
@@ -136,7 +141,7 @@ class NuevaPareja(BaseModel):
 
 
 class Ganador(BaseModel):
-    pareja: int
+    pareja: int = Field(ge=1, le=MAX_ID)
 
 
 class Listo(BaseModel):
@@ -155,9 +160,11 @@ def _descripcion(tipo: str) -> str:
 
 def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
               torneos: GestorTorneos | None = None,
-              reloj: Callable[[], float] = time.time) -> FastAPI:
-    """Crea la aplicación (los tests le pasan una configuración y gestores a medida, y
-    ``reloj`` para controlar la hora de las cuentas y los torneos privados)."""
+              reloj: Callable[[], float] = time.time,
+              rng: random.Random | None = None) -> FastAPI:
+    """Crea la aplicación (los tests le pasan una configuración y gestores a medida,
+    ``reloj`` para controlar la hora de las cuentas y los torneos privados, y ``rng`` para que
+    sus sorteos y semillas se puedan repetir)."""
     config = config or Config.desde_entorno()
     app = FastAPI(title=NOMBRE_WEB, version=__version__, docs_url="/api/docs",
                   redoc_url=None)
@@ -166,7 +173,8 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     app.state.torneos = torneos if torneos is not None else GestorTorneos(config)
     motor = conectar(config.bd)
     app.state.cuentas = Cuentas(motor, reloj)
-    app.state.privados = Privados(motor, app.state.cuentas, app.state.mesas, config, reloj)
+    app.state.privados = Privados(motor, app.state.cuentas, app.state.mesas, config,
+                                  reloj, rng)
     app.state.archivo = ArchivoPartidas(motor, reloj)
     app.state.mesas.al_grabar = app.state.archivo.guardar
     # La versión de la página va en cada respuesta del API: si una pestaña abierta tiene otra,
@@ -187,10 +195,13 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
     async def cabeceras_de_seguridad(request: Request, call_next):
         protegida = request.url.path.startswith(("/api/cuenta", "/api/privados"))
         if protegida and request.method != "GET" and request.headers.get("X-Mus") != "1":
-            return JSONResponse({"detalle": "Petición no permitida"}, status_code=403)
-        respuesta = await call_next(request)
+            respuesta = JSONResponse({"detalle": "Petición no permitida"}, status_code=403)
+        else:
+            respuesta = await call_next(request)
         if protegida:
             respuesta.headers["Cache-Control"] = "no-store"
+        if config.publico:  # en internet solo por HTTPS (Render lo sirve así)
+            respuesta.headers["Strict-Transport-Security"] = "max-age=31536000"
         respuesta.headers["Referrer-Policy"] = "no-referrer"
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
         respuesta.headers["X-Frame-Options"] = "DENY"
@@ -314,14 +325,14 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         return app.state.privados.ver(usuario, codigo)
 
     @app.post("/api/privados/{codigo}/parejas/{pareja}/aceptar")
-    def aceptar(codigo: str, pareja: int,
+    def aceptar(codigo: str, pareja: Id,
                 mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = usuario_de(mus_sesion)
         app.state.privados.aceptar(usuario, codigo, pareja)
         return app.state.privados.ver(usuario, codigo)
 
     @app.post("/api/privados/{codigo}/parejas/{pareja}/retirar")
-    def retirar(codigo: str, pareja: int,
+    def retirar(codigo: str, pareja: Id,
                 mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = usuario_de(mus_sesion)
         app.state.privados.retirar(usuario, codigo, pareja)
@@ -340,19 +351,19 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
         return app.state.privados.ver(usuario, codigo)
 
     @app.post("/api/privados/{codigo}/partidos/{partido}/listo")
-    def marcar_listo(codigo: str, partido: int, datos: Listo,
+    def marcar_listo(codigo: str, partido: Id, datos: Listo,
                      mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = usuario_de(mus_sesion)
         app.state.privados.marcar_listo(usuario, codigo, partido, datos.listo)
         return app.state.privados.ver(usuario, codigo)
 
     @app.post("/api/privados/{codigo}/partidos/{partido}/entrar")
-    def entrar_partido(codigo: str, partido: int,
+    def entrar_partido(codigo: str, partido: Id,
                        mus_sesion: str | None = Cookie(default=None)) -> dict:
         return app.state.privados.entrar(usuario_de(mus_sesion), codigo, partido)
 
     @app.post("/api/privados/{codigo}/partidos/{partido}/ganador")
-    def dar_ganador(codigo: str, partido: int, datos: Ganador,
+    def dar_ganador(codigo: str, partido: Id, datos: Ganador,
                     mus_sesion: str | None = Cookie(default=None)) -> dict:
         usuario = usuario_de(mus_sesion)
         app.state.privados.dar_ganador(usuario, codigo, partido, datos.pareja)
@@ -402,10 +413,20 @@ def crear_app(config: Config | None = None, mesas: GestorMesas | None = None,
 
     @app.get("/api/reglas", response_class=PlainTextResponse)
     def reglas() -> str:
+        """Las reglas del archivo local o, si no está (la web instalada con pip), las del
+        repositorio publicado (se leen una vez)."""
         ruta = config.ruta("reglas")
-        if not ruta.is_file():
+        if ruta.is_file():
+            return ruta.read_text(encoding="utf-8")
+        if cache.get("reglas") is None and config.reglas_url:
+            try:
+                with urllib.request.urlopen(config.reglas_url, timeout=4) as respuesta:
+                    cache["reglas"] = respuesta.read().decode("utf-8")
+            except (OSError, ValueError):
+                pass
+        if cache.get("reglas") is None:
             raise ErrorMesa("No se encuentran las reglas", 404)
-        return ruta.read_text(encoding="utf-8")
+        return cache["reglas"]
 
     # --- Página ---------------------------------------------------------------------------
 

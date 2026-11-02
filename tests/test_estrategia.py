@@ -18,7 +18,6 @@ from musarena.estrategia.evaluacion import (
     bonus_pareja,
     prob_ganar_lance,
     prob_vaca,
-    respuesta_rival,
 )
 from musarena.estrategia.lectura import LectorRivales
 from musarena.estrategia.tipos import (
@@ -240,17 +239,6 @@ def test_querer_es_mas_probable_con_mano_fuerte():
     assert verosimilitud(Quiero(), 0.6, modelo, apuesta=30, faltan=30) < verosimilitud(
         Quiero(), 0.6, modelo, apuesta=2, faltan=30
     )
-
-
-def test_respuesta_rival():
-    s = _en_grande(["R R C 7", "4 5 6 7", "5 6 7 A", "4 5 6 A"])
-    obs = observe(s, 0)
-    creencias = Creencias.desde_observacion(obs)
-    p = prob_ganar_lance(Lance.GRANDE, 0, obs.cartas, 0, range(4), creencias)
-    q, p_si = respuesta_rival(Lance.GRANDE, 0, obs.cartas, 0, range(4), creencias,
-                              ModeloRival(), apuesta=5)
-    assert 0 < q < 1
-    assert p_si < p  # si me quieren es porque tienen mano
 
 
 def test_bonus_de_pareja():

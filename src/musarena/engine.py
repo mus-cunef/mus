@@ -88,7 +88,11 @@ def nueva_partida(
     ese jugador es la mano desde el principio y no hay mano corrida (útil para preparar
     posiciones concretas en los tests), salvo que se pida con ``corrida=True``.
     """
-    generador = rng if rng is not None else random.Random(seed)
+    # Una copia del generador que se pasa: si no, quien lo pasó y la partida compartirían el
+    # mismo y usarlo fuera cambiaría los repartos de la partida.
+    generador = random.Random(seed)
+    if rng is not None:
+        generador.setstate(rng.getstate())
     if corrida is None:
         corrida = mano is None
     if mano is None:
@@ -242,7 +246,8 @@ def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     pila = set(s.baraja.descartes)
     s.tiradas = [[c for c in t if c in pila] for t in s.tiradas]
     n = len(descartadas)
-    s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
+    s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}",
+                                descartadas=n))
     s.descartes_hechos += 1
     if s.descartes_hechos == 4:
         s.fase = Fase.MUS

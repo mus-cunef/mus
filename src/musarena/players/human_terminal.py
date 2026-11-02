@@ -92,7 +92,7 @@ class HumanTerminalPlayer(Player):
             respuesta = self._pedir("Elige una opción (o /chat mensaje): ")
             if respuesta is None:
                 continue
-            if not (respuesta.isdigit() and 1 <= int(respuesta) <= len(opciones)):
+            if not (respuesta.isdecimal() and 1 <= int(respuesta) <= len(opciones)):
                 self._salida(f"Escribe un número entre 1 y {len(opciones)}.")
                 continue
             eleccion = opciones[int(respuesta) - 1][1]
@@ -193,7 +193,7 @@ class HumanTerminalPlayer(Player):
             respuesta = self._pedir(f"{pregunta} ({minimo}-{maximo}): ")
             if respuesta is None:
                 continue
-            if respuesta.isdigit() and minimo <= int(respuesta) <= maximo:
+            if respuesta.isdecimal() and minimo <= int(respuesta) <= maximo:
                 return int(respuesta)
             self._salida(f"Escribe un número entre {minimo} y {maximo}.")
 
@@ -205,7 +205,7 @@ class HumanTerminalPlayer(Player):
             if respuesta is None:
                 continue
             partes = respuesta.replace(",", " ").split()
-            if not partes or not all(p.isdigit() for p in partes):
+            if not partes or not all(p.isdecimal() for p in partes):
                 self._salida("Escribe los números de las cartas, del 1 al 4.")
                 continue
             indices = {int(p) for p in partes}

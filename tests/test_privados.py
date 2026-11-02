@@ -10,6 +10,7 @@ pytest.importorskip("sqlalchemy")
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
+from musarena.web import cuentas as modulo  # noqa: E402
 from musarena.web.app import crear_app  # noqa: E402
 from musarena.web.bd import usuarios  # noqa: E402
 from musarena.web.config import Config  # noqa: E402
@@ -35,7 +36,14 @@ def reloj():
 @pytest.fixture
 def app(reloj, tmp_path):
     config = Config(pausa_bots=0, carpeta_partidas="", bd=f"sqlite:///{tmp_path / 'mus.db'}")
-    return crear_app(config, GestorMesas(config), reloj=reloj)
+    return crear_app(config, GestorMesas(config), reloj=reloj, rng=random.Random(7))
+
+
+@pytest.fixture(autouse=True)
+def scrypt_rapido(monkeypatch):
+    """scrypt de verdad tarda unos 50 ms por cuenta: en los tests, con menos coste (los hashes
+    guardan sus parámetros, así que se comprueban igual)."""
+    monkeypatch.setattr(modulo, "_N", 2**4)
 
 
 def _cliente(app) -> TestClient:
@@ -240,8 +248,6 @@ def test_olvidar_fallos_viejos_no_quita_los_bloqueos(app, reloj):
 def test_entrar_calcula_un_solo_hash_exista_o_no_el_usuario(app, monkeypatch):
     import hashlib
 
-    from musarena.web import cuentas as modulo
-
     _usuario(app, "Pablo")
     veces = []
     original = hashlib.scrypt
@@ -274,6 +280,7 @@ def test_sin_la_cabecera_x_mus_no_se_cambia_nada(app):
     c = TestClient(app)
     r = c.post("/api/cuenta/registro", json={"nombre": "Pablo", "clave": CLAVE})
     assert r.status_code == 403
+    assert r.headers["X-Frame-Options"] == "DENY" and r.headers["Cache-Control"] == "no-store"
 
 
 # --- Crear e inscribirse ---
@@ -660,3 +667,30 @@ def test_solo_los_organizadores_crean_torneos(reloj):
 
 def test_sin_lista_de_organizadores_crea_cualquiera(app):
     assert _usuario(app, "Cualquiera").get("/api/cuenta").json()["usuario"]["organizador"] is True
+
+
+def test_un_id_enorme_no_rompe_el_servidor(app, reloj):
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    for ruta in (f"parejas/{2**70}/aceptar", f"partidos/{2**70}/entrar", "parejas/0/retirar"):
+        assert org.post(f"/api/privados/{codigo}/{ruta}").status_code == 422, ruta
+    r = org.post(f"/api/privados/{codigo}/partidos/1/ganador", json={"pareja": 2**70})
+    assert r.status_code == 422
+
+
+def test_dos_registros_a_la_vez_con_el_mismo_nombre(app, monkeypatch):
+    """Si otro se registra con el nombre entre la comprobación y el alta, 409 y no un 500."""
+    cuentas = app.state.cuentas
+    cuentas.registrar("Pablo", CLAVE)
+    monkeypatch.setattr(modulo, "select", lambda *a: select(usuarios.c.id).where(False))
+    with pytest.raises(ErrorMesa) as e:
+        cuentas.registrar("pablo", CLAVE)
+    assert e.value.codigo == 409
+
+
+def test_sin_dos_parejas_al_llegar_la_fecha_se_cancela(app, reloj):
+    org = _usuario(app, "Pablo")
+    codigo = _torneo(org, reloj)
+    _inscribir(app, codigo, 1)
+    reloj.t += 8 * DIA
+    assert _ver(org, codigo)["estado"] == "cancelado"
