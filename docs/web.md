@@ -192,10 +192,15 @@ por defecto **no** se ofrecen los bots de `bots/`: son código de otros equipos 
 guarda secretos (`MUS_BD`); se pueden activar con `MUS_BOTS=bots` si se han revisado. Las mesas
 viven en memoria, así que la web se arranca con **un solo proceso** (`mus-web` ya lo hace).
 
+Si la web no arranca desde una copia del repositorio (instalada con `pip install`), no tiene
+`docs/`: lee las reglas del repositorio en GitHub (una vez) y la clasificación de la
+documentación publicada. `bots/` es opcional.
+
 Variables de entorno: `MUS_PUBLICO`, `MUS_MAX_MESAS`, `MUS_MINUTOS_INACTIVA`,
 `MUS_MAX_PARTIDAS_TORNEO`, `MUS_PROCESOS_TORNEO`, `MUS_PARTIDAS`, `MUS_BOTS`,
-`MUS_CLASIFICACION`, `MUS_CLASIFICACION_URL`, `MUS_REGLAS`, `MUS_BD` y `MUS_ORGANIZADORES`
-(ver `musarena/web/config.py`).
+`MUS_CLASIFICACION`, `MUS_CLASIFICACION_URL`, `MUS_REGLAS`, `MUS_REGLAS_URL`, `MUS_BD`,
+`MUS_ORGANIZADORES`, `MUS_PROXY`, `MUS_MESAS_POR_HORA` y `MUS_REGISTROS_POR_HORA` (ver
+`musarena/web/config.py`).
 
 ## API
 
@@ -216,4 +221,5 @@ La documentación interactiva está en `/api/docs`. Las rutas están en la cabec
   distintos: crear con formato, invitar, inscribirse, aceptar, sortear, entrar en la mesa y
   campeón). Comprueba que no hay errores de JavaScript ni cartas ajenas en
   pantalla. Usa el Chrome instalado: `pip install -e ".[e2e]"` y `pytest
-  tests/test_web_navegador.py`. **Hay que pasarlas antes de cada PR que toque la web.**
+  tests/test_web_navegador.py`. La CI las pasa en un trabajo propio con Chrome; aun así,
+  conviene pasarlas en local antes de cada PR que toque la web.
