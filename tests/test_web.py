@@ -304,3 +304,24 @@ def test_los_humanos_se_ponen_nombre(entorno):
     largo = cliente.post("/api/mesas", json={"asientos": ["humano"] + ["random"] * 3,
                                               "nombres": ["x" * 500]})
     assert largo.status_code == 400
+
+
+def test_si_no_se_puede_guardar_la_jugada_se_reintenta(tmp_path):
+    from musarena.web.mesas import HUMANO, Mesa
+
+    guardadas, fallar = [], [True]
+
+    def al_cambiar(mesa):
+        if fallar[0]:
+            raise RuntimeError("la base de datos no responde")
+        guardadas.append(len(mesa.acciones))
+
+    config = Config(pausa_bots=0, carpeta_partidas=str(tmp_path))
+    mesa = Mesa([HUMANO, "random", "random", "random"], 3, config, al_cambiar=al_cambiar)
+    token = mesa.tokens[0]
+    v = mesa.vista(token)  # juegan los bots hasta el turno del humano: no se rompe nada
+    mesa.jugar(token, 0, v["version"])
+    assert mesa.sin_guardar and guardadas == []
+    fallar[0] = False
+    mesa.vista(token)  # la siguiente consulta lo vuelve a intentar, con todas las jugadas
+    assert not mesa.sin_guardar and guardadas[-1] == len(mesa.acciones) > 1
