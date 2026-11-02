@@ -295,3 +295,19 @@ def test_lector_detecta_a_quien_va_de_farol():
     assert lector.tasa_farol(2, previa) == pytest.approx(previa)  # sin datos: la previa
     modelos = lector.modelos(ModeloRival(), asiento_propio=0)
     assert set(modelos) == {1, 2, 3} and modelos[1].farol > modelos[3].farol
+
+
+def test_la_ronda_de_mus_empieza_de_cero_tras_los_descartes():
+    """Tras cuatro «mus» y los descartes, la ronda anterior ya no dice nada de las manos
+    nuevas (la red, entrenada así, la sigue viendo con ``como_v4``)."""
+    s = nueva_partida(mano=0, seed=3)
+    for _ in range(4):
+        s = apply(s, Mus())
+    assert len(ronda_de_mus(s.historial)) == 4
+    for _ in range(4):
+        s = apply(s, Descarte(frozenset(s.cartas[s.turno][:1])))
+    assert ronda_de_mus(s.historial) == []
+    assert len(ronda_de_mus(s.historial, como_v4=True)) == 4
+    s = apply(s, NoHayMus())
+    assert [e.asiento for e in ronda_de_mus(s.historial)] == [0]
+    assert [e.asiento for e in ronda_de_mus(s.historial, como_v4=True)] == [0]

@@ -242,9 +242,11 @@ Principios:
 4. **Auditoría externa (2026-11-02):** informe con 50 hallazgos y un plan en 5 fases (lo tiene
    Pablo). Hechas la fase 1 (ningún bot rompe el torneo) y la 2 (torneos privados y mesa
    fiables: cancelar de verdad, invitaciones que no bloquean, botones que no se quedan
-   bloqueados, guardado que se reintenta, mesas que no «resucitan» al cerrarlas). Quedan la 3
-   (filtración de `mis_descartes` tras rebarajar, envites que la red tiene prohibidos), la 4
-   (seguridad de la web pública) y la 5 (CI, limpieza y documentación).
+   bloqueados, guardado que se reintenta, mesas que no «resucitan» al cerrarlas) y la 3
+   (`mis_descartes` ya no filtra cartas tras rebarajar, los envites fuera del catálogo van a
+   una salida legal de la red, y la ronda de mus empieza de cero tras los descartes salvo para
+   la red: `como_v4=True` hasta reentrenar). Quedan la 4 (seguridad de la web pública) y la 5
+   (CI, limpieza y documentación).
 5. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
 6. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con

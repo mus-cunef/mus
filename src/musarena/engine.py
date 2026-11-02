@@ -236,6 +236,11 @@ def _aplicar_descarte(s: State, asiento: int, action: Descarte) -> None:
     s.baraja.descartar(descartadas)
     s.tiradas[asiento].extend(descartadas)
     s.cartas[asiento] = ordenar_cartas(se_queda + s.baraja.robar(len(descartadas)))
+    # Si al robar se han rebarajado los descartes, esas cartas ya no están en la pila: se
+    # olvidan. Si no, cuando alguien robara una y la volviera a tirar, reaparecería en los
+    # descartes de quien la tiró primero, y este sabría quién la tenía.
+    pila = set(s.baraja.descartes)
+    s.tiradas = [[c for c in t if c in pila] for t in s.tiradas]
     n = len(descartadas)
     s.historial.append(Evento(asiento, f"Se descarta de {n} carta{'s' if n > 1 else ''}"))
     s.descartes_hechos += 1

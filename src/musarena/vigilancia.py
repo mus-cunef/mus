@@ -39,6 +39,8 @@ from musarena.player import Player
 LIMITE_ARRANQUE = 120.0
 #: Crear el bot (importar su archivo, cargar un modelo) puede tardar más que una jugada.
 FACTOR_CREAR = 6
+#: Y nunca menos de esto (con un equipo cargado, crear un bot puede tardar más de un segundo).
+MINIMO_CREAR = 5.0
 #: Mensajes de chat que un bot puede escribir en cada llamada.
 MAX_MENSAJES = 5
 
@@ -254,7 +256,8 @@ class JugadorVigilado(Player):
         self._hueco = hueco
         self._manos_enviadas = 0
         self.limite = limite_segundos
-        limite_crear = None if limite_segundos is None else limite_segundos * FACTOR_CREAR
+        limite_crear = (None if limite_segundos is None
+                        else max(limite_segundos * FACTOR_CREAR, MINIMO_CREAR))
         self.nombre = str(self._llamar("crear", (receta, seed), limite_crear,
                                        "error al crear el bot"))
 

@@ -46,6 +46,18 @@ def test_cantidades_fuera_del_catalogo_van_a_la_mas_cercana():
     assert acciones.NOMBRES[acciones.indice(Reenvido(12), cartas)] == "Reenvido 10"
 
 
+@pytest.mark.parametrize("reenvido", [13, 14, 18, 19])
+def test_una_cantidad_fuera_del_catalogo_va_a_una_posicion_legal(reenvido):
+    """Con 40 - tope = reenvido, la cantidad del catálogo más cercana se pasa del tope: hay
+    que ir a la más cercana que sea legal (la red no puede aprender de una posición tapada)."""
+    s = apply(apply(nueva_partida(mano=0, seed=0), NoHayMus()), Envido(40 - reenvido))
+    legales, cartas = legal_actions(s), s.cartas[s.turno]
+    assert Reenvido(reenvido) in legales
+    i = acciones.indice(Reenvido(reenvido), cartas, legales)
+    assert acciones.mascara(legales, cartas)[i]
+    assert acciones.NOMBRES[i] == ("Reenvido 10" if reenvido < 15 else "Reenvido 15")
+
+
 def test_la_mascara_respeta_el_tope_de_40():
     s = apply(apply(nueva_partida(mano=0, seed=0), NoHayMus()), Envido(30))
     m = acciones.mascara(legal_actions(s), s.cartas[s.turno])

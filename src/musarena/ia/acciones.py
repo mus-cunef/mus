@@ -12,7 +12,8 @@ corresponde con una posición de este catálogo:
 
 En cada decisión se calcula una **máscara** con las posiciones legales; las demás se tapan, así
 que la red nunca puede hacer una jugada ilegal. Las cantidades que no están en el catálogo (un
-humano que envida 7) se traducen a la más cercana para aprender de ellas.
+humano que envida 7) se traducen a la más cercana **que sea legal** para aprender de ellas (si
+no, un ``Reenvido 13`` iría a «Reenvido 15», que puede pasar del tope y estar tapada).
 """
 
 from __future__ import annotations
@@ -69,12 +70,22 @@ QUIERO = ORDAGO + 1
 NO_QUIERO = QUIERO + 1
 
 
-def _mas_cercana(cantidad: int, opciones: Sequence[int]) -> int:
-    return min(range(len(opciones)), key=lambda i: (abs(opciones[i] - cantidad), opciones[i]))
+def _mas_cercana(cantidad: int, opciones: Sequence[int], legal=None) -> int:
+    """La opción más cercana a ``cantidad`` entre las que ``legal(opción)`` permite (si no hay
+    ninguna, entre todas)."""
+    posibles = [i for i in range(len(opciones)) if legal is None or legal(opciones[i])]
+    return min(posibles or range(len(opciones)),
+               key=lambda i: (abs(opciones[i] - cantidad), opciones[i]))
 
 
-def indice(accion: Action, cartas: Sequence[Carta]) -> int:
-    """Posición del catálogo que corresponde a ``accion`` (con ``cartas``, la mano ordenada)."""
+def indice(accion: Action, cartas: Sequence[Carta],
+           legales: Sequence[Action] | None = None) -> int:
+    """Posición del catálogo que corresponde a ``accion`` (con ``cartas``, la mano ordenada).
+
+    Con ``legales``, una cantidad que no está en el catálogo va a la más cercana que sea legal
+    (para entrenar con partidas humanas: la red solo aprende de posiciones legales).
+    """
+    permitidas = None if legales is None else set(legales)
     if isinstance(accion, Mus):
         return MUS
     if isinstance(accion, NoHayMus):
@@ -85,9 +96,13 @@ def indice(accion: Action, cartas: Sequence[Carta]) -> int:
     if isinstance(accion, Paso):
         return PASO
     if isinstance(accion, Envido):
-        return _PRIMER_ENVIDO + _mas_cercana(accion.tantos, CANTIDADES_ENVIDO)
+        return _PRIMER_ENVIDO + _mas_cercana(
+            accion.tantos, CANTIDADES_ENVIDO,
+            None if permitidas is None else lambda n: Envido(n) in permitidas)
     if isinstance(accion, Reenvido):
-        return _PRIMER_REENVIDO + _mas_cercana(accion.tantos, CANTIDADES_REENVIDO)
+        return _PRIMER_REENVIDO + _mas_cercana(
+            accion.tantos, CANTIDADES_REENVIDO,
+            None if permitidas is None else lambda n: Reenvido(n) in permitidas)
     if isinstance(accion, Ordago):
         return ORDAGO
     if isinstance(accion, Quiero):

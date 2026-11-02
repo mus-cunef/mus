@@ -51,7 +51,7 @@ def _jugar_trozo(args: tuple[int, int, tuple[str, ...], int]) -> dict[str, np.nd
             obs = d.observacion
             xs.append(codificar(obs))
             mascaras.append(acciones.mascara(d.legales, obs.cartas))
-            ys.append(acciones.indice(d.accion, obs.cartas))
+            ys.append(acciones.indice(d.accion, obs.cartas, d.legales))
             pendientes.append((d.asiento, sum(obs.vacas)))
 
         match = Match(mesa, mejor_de=mejor_de, seed=rng.randrange(2**32), al_decidir=al_decidir)
@@ -109,7 +109,7 @@ def de_partidas(partidas: Sequence[PartidaGrabada], tipos: Sequence[str] = ("hum
             obs = d.observacion
             xs.append(codificar(obs))
             mascaras.append(acciones.mascara(d.legales, obs.cartas))
-            ys.append(acciones.indice(d.accion, obs.cartas))
+            ys.append(acciones.indice(d.accion, obs.cartas, d.legales))
             valores.append(1.0 if pareja(d.asiento) == ganadoras[vaca] else -1.0)
     return {
         "x": np.asarray(xs, dtype=np.float32).reshape(-1, N_ENTRADAS),

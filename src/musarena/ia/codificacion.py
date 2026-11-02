@@ -148,7 +148,8 @@ def _codificar(obs: Observation, v: _Vector, creencias: Creencias | None) -> Non
                   declaracion is not None and not declaracion[s])
 
     # 7. Mus y descartes.
-    ronda = ronda_de_mus(obs.historial) if obs.fase is Fase.MUS else []
+    # Como se entrenó el v4 (ver ronda_de_mus): cambiarlo cambia la entrada de la red.
+    ronda = ronda_de_mus(obs.historial, como_v4=True) if obs.fase is Fase.MUS else []
     for rel in _OTROS:
         s = (yo + rel) % 4
         acciones = [e.accion for e in ronda if e.asiento == s]
@@ -186,7 +187,7 @@ def _codificar(obs: Observation, v: _Vector, creencias: Creencias | None) -> Non
 
     # 10. Análisis de la estrategia.
     if creencias is None:
-        creencias = Creencias.desde_observacion(obs)
+        creencias = Creencias.desde_observacion(obs, como_v4=True)
     if hay:
         args = (obs.lance, yo, obs.cartas, obs.mano, ap.participantes, creencias)
         v.add("p_ganar_lance", prob_ganar_lance(*args))
