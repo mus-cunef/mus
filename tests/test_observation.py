@@ -2,6 +2,7 @@ import dataclasses
 
 from helpers import JugadorAleatorio
 from musarena.actions import Descarte, Mus, NoHayMus, Paso
+from musarena.cards import todas_las_cartas
 from musarena.engine import apply, nueva_partida
 from musarena.match import Match
 from musarena.observation import Observation, observe
@@ -53,6 +54,29 @@ def test_cada_uno_recuerda_sus_descartes_mientras_siguen_en_la_pila():
     s.baraja.mazo = []
     s = apply(s, Descarte(frozenset(s.cartas[1][:1])))
     assert observe(s, 0).mis_descartes == ()
+
+
+def test_tras_rebarajar_no_se_sabe_quien_vuelve_a_tirar_mi_carta():
+    """Tiro una carta, se rebaraja y la roba otro. Cuando él la tira, no puede volver a
+    aparecer en mis descartes: si apareciera, sabría quién la tenía."""
+    s = jugar_mus(nueva_partida(mano=0, seed=4))
+    mia = s.cartas[0][0]
+    s = apply(s, Descarte(frozenset([mia])))
+    # El mazo se acaba y en la pila solo está mi carta: se rebaraja y la roba el 1.
+    s.baraja.mazo, s.baraja.descartes = [], [mia]
+    s = apply(s, Descarte(frozenset(s.cartas[1][:1])))
+    assert mia in s.cartas[1]  # (con esta semilla)
+    assert observe(s, 0).mis_descartes == ()
+    # Se rehace el mazo con las cartas que no tiene nadie, para seguir sin más rebarajes.
+    en_juego = {c for mano in s.cartas for c in mano} | set(s.baraja.descartes)
+    s.baraja.mazo = [c for c in todas_las_cartas() if c not in en_juego]
+    s = apply(s, Descarte(frozenset(s.cartas[2][:1])))
+    s = apply(s, Descarte(frozenset(s.cartas[3][:1])))
+    s = jugar_mus(s)
+    s = apply(s, Descarte(frozenset(s.cartas[0][:1])))
+    s = apply(s, Descarte(frozenset([mia])))  # el 1 la tira: vuelve a la pila
+    assert mia in s.baraja.descartes
+    assert mia not in observe(s, 0).mis_descartes
 
 
 def jugar_mus(s):
