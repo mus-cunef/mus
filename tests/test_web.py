@@ -286,12 +286,18 @@ def test_solo_un_torneo_a_la_vez():
     with pytest.raises(Exception, match="Ya hay un torneo"):
         torneos.lanzar(["random", "basico"], 4)
     soltar.set()
-    for _ in range(100):
-        if primero.estado != "jugando":
-            break
-        time.sleep(0.02)
+    _hasta_que_acabe(primero)
     assert primero.estado == "terminado"
-    assert torneos.lanzar(["random", "basico"], 4).estado in ("jugando", "terminado")
+    # Acabado el primero, se puede lanzar otro (también falso: el test no deja nada corriendo).
+    _hasta_que_acabe(torneos.lanzar(["random", "basico"], 4))
+
+
+def _hasta_que_acabe(torneo):
+    for _ in range(250):
+        if torneo.estado != "jugando":
+            return
+        time.sleep(0.02)
+    raise AssertionError("El torneo no ha terminado")
 
 
 def test_la_clasificacion_publicada_tiene_preferencia(tmp_path):
