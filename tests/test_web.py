@@ -325,3 +325,21 @@ def test_si_no_se_puede_guardar_la_jugada_se_reintenta(tmp_path):
     fallar[0] = False
     mesa.vista(token)  # la siguiente consulta lo vuelve a intentar, con todas las jugadas
     assert not mesa.sin_guardar and guardadas[-1] == len(mesa.acciones) > 1
+
+
+def test_mesas_nuevas_por_hora(tmp_path):
+    config = Config(pausa_bots=0, carpeta_partidas="", max_mesas_por_hora=2)
+    c = TestClient(crear_app(config, GestorMesas(config), GestorTorneos(config)))
+    asientos = {"asientos": ["humano", "random", "random", "random"]}
+    assert [c.post("/api/mesas", json=asientos).status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_ventana_olvida_lo_viejo():
+    from musarena.web.limites import Ventana
+
+    reloj = Reloj()
+    v = Ventana(2, 60, reloj)
+    assert v.permitir("a") and v.permitir("a") and not v.permitir("a")
+    assert v.permitir("b")
+    reloj.t += 61
+    assert v.permitir("a")

@@ -169,6 +169,106 @@ def test_bloqueo_tras_muchos_fallos(app, reloj):
                   ).status_code == 200
 
 
+def test_el_bloqueo_es_por_direccion_y_no_sirve_contra_otro(app):
+    """Un rival que falla 8 veces con mi nombre solo se bloquea a sí mismo."""
+    _usuario(app, "Pablo")
+    cuentas = app.state.cuentas
+    for _ in range(8):
+        with pytest.raises(ErrorMesa):
+            cuentas.entrar("Pablo", "xxxxxxxx", ip="6.6.6.6")
+    with pytest.raises(ErrorMesa) as e:
+        cuentas.entrar("Pablo", CLAVE, ip="6.6.6.6")
+    assert e.value.codigo == 429
+    assert cuentas.entrar("Pablo", CLAVE, ip="1.2.3.4")[0].nombre == "Pablo"
+
+
+def test_cada_direccion_tiene_un_tope_de_fallos(app):
+    cuentas = app.state.cuentas
+    for i in range(30):
+        with pytest.raises(ErrorMesa):
+            cuentas.entrar(f"nadie{i}", "xxxxxxxx", ip="6.6.6.6")
+    with pytest.raises(ErrorMesa) as e:
+        cuentas.entrar("otro", "xxxxxxxx", ip="6.6.6.6")
+    assert e.value.codigo == 429
+
+
+def test_intentos_a_la_vez_no_prueban_mas_contrasenas(app, monkeypatch):
+    import threading
+    import time
+
+    from musarena.web import cuentas as modulo
+
+    _usuario(app, "Pablo")
+    probadas = []
+    original = modulo.comprobar_clave
+
+    def lenta(clave, guardada):
+        probadas.append(clave)
+        time.sleep(0.05)
+        return original(clave, guardada)
+
+    monkeypatch.setattr(modulo, "comprobar_clave", lenta)
+
+    def intento():
+        try:
+            app.state.cuentas.entrar("Pablo", "xxxxxxxx", ip="6.6.6.6")
+        except ErrorMesa:
+            pass
+
+    hilos = [threading.Thread(target=intento) for _ in range(40)]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join()
+    assert len(probadas) <= 8
+
+
+def test_olvidar_fallos_viejos_no_quita_los_bloqueos(app, reloj):
+    _usuario(app, "Pablo")
+    cuentas = app.state.cuentas
+    for _ in range(8):
+        with pytest.raises(ErrorMesa):
+            cuentas.entrar("Pablo", "xxxxxxxx", ip="6.6.6.6")
+    for i in range(10_001):  # muchos nombres inventados, ya caducados
+        cuentas._fallos[f"u:x{i}|9.9.9.9"] = [reloj.t - 3600]
+    with pytest.raises(ErrorMesa) as e:
+        cuentas.entrar("Pablo", CLAVE, ip="6.6.6.6")
+    assert e.value.codigo == 429
+    assert len(cuentas._fallos) < 100
+
+
+def test_entrar_calcula_un_solo_hash_exista_o_no_el_usuario(app, monkeypatch):
+    import hashlib
+
+    from musarena.web import cuentas as modulo
+
+    _usuario(app, "Pablo")
+    veces = []
+    original = hashlib.scrypt
+    monkeypatch.setattr(modulo.hashlib, "scrypt",
+                        lambda *a, **k: veces.append(1) or original(*a, **k))
+    for nombre in ("Pablo", "nadie"):
+        veces.clear()
+        with pytest.raises(ErrorMesa):
+            app.state.cuentas.entrar(nombre, "xxxxxxxx", ip="1.1.1.1")
+        assert len(veces) == 1, nombre
+
+
+def test_cuentas_nuevas_por_hora(reloj, tmp_path):
+    config = Config(pausa_bots=0, carpeta_partidas="", bd=f"sqlite:///{tmp_path / 'mus.db'}",
+                    max_registros_por_hora=2, detras_de_proxy=True)
+    app = crear_app(config, GestorMesas(config), reloj=reloj)
+    c = _cliente(app)
+    for i, codigo in enumerate((200, 200, 429)):
+        r = c.post("/api/cuenta/registro", json={"nombre": f"user{i}", "clave": CLAVE},
+                   headers={"X-Forwarded-For": f"9.9.9.9, 5.5.5.{i // 3}"})
+        assert r.status_code == codigo, r.text
+    # La primera dirección la escribe el cliente (no cuenta); la última la pone el proxy.
+    r = c.post("/api/cuenta/registro", json={"nombre": "user9", "clave": CLAVE},
+               headers={"X-Forwarded-For": "9.9.9.9, 5.5.5.1"})
+    assert r.status_code == 200
+
+
 def test_sin_la_cabecera_x_mus_no_se_cambia_nada(app):
     """Defensa contra CSRF: otra web no puede poner cabeceras propias en una petición."""
     c = TestClient(app)
