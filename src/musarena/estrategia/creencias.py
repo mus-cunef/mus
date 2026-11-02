@@ -127,10 +127,14 @@ def verosimilitud_mus(corta: bool, modelo: ModeloRival) -> np.ndarray:
     return v
 
 
-def ronda_de_mus(historial: Sequence[Evento]) -> list[Evento]:
+def ronda_de_mus(historial: Sequence[Evento], como_v4: bool = False) -> list[Evento]:
     """Acciones de la ronda de mus en curso o de la última (la que se hizo con las manos actuales).
 
-    Una ronda termina cuando los cuatro piden mus: la siguiente acción de mus abre otra ronda.
+    Cuando los cuatro piden mus, se descartan y las manos cambian: esa ronda ya no dice nada de
+    las manos nuevas, así que al verse los descartes se empieza una ronda vacía.
+
+    ``como_v4=True`` da lo que veía el modelo v4 al entrenarse: la ronda anterior hasta que
+    alguien habla en la nueva. Lo usa la codificación de la red; cambiarlo exige reentrenar.
     """
     ronda: list[Evento] = []
     for evento in historial:
@@ -138,15 +142,21 @@ def ronda_de_mus(historial: Sequence[Evento]) -> list[Evento]:
             if len(ronda) == 4:
                 ronda = []
             ronda.append(evento)
+        elif not como_v4 and _es_descarte(evento):
+            ronda = []
     return ronda
+
+
+def _es_descarte(evento: Evento) -> bool:
+    return (evento.asiento is not None and evento.accion is None
+            and evento.texto.startswith("Se descarta de "))
 
 
 def ultimos_descartes(historial: Sequence[Evento]) -> dict[int, int]:
     """De cuántas cartas se descartó cada jugador la última vez en esta mano."""
     ultimos: dict[int, int] = {}
     for evento in historial:
-        if evento.asiento is not None and evento.accion is None \
-                and evento.texto.startswith("Se descarta de "):
+        if _es_descarte(evento):
             ultimos[evento.asiento] = int(evento.texto.split()[3])
     return ultimos
 
@@ -167,11 +177,13 @@ class Creencias:
         obs: Observation,
         modelo: ModeloRival | None = None,
         modelos: dict[int, ModeloRival] | None = None,
+        como_v4: bool = False,
     ) -> Creencias:
         """Creencias de ``obs.asiento`` a partir de todo lo que ha visto en la mano.
 
         ``modelos`` permite usar un modelo distinto para cada jugador (por ejemplo, con la tasa
-        de farol aprendida de cada rival); los que falten usan ``modelo``.
+        de farol aprendida de cada rival); los que falten usan ``modelo``. ``como_v4``: ver
+        :func:`ronda_de_mus`.
         """
         modelo = modelo or ModeloRival()
         modelos = modelos or {}
@@ -193,7 +205,7 @@ class Creencias:
                 w[a] *= FACTOR_DESCARTE[n]
 
         # 3. Última ronda de mus (restricción suave).
-        for evento in ronda_de_mus(obs.historial):
+        for evento in ronda_de_mus(obs.historial, como_v4):
             if evento.asiento in w:
                 m = modelos.get(evento.asiento, modelo)
                 w[evento.asiento] *= verosimilitud_mus(isinstance(evento.accion, NoHayMus), m)

@@ -146,6 +146,15 @@ Otras mediciones: quitar "decidir solo con mi mano si mi compañero habla despu�
 unos 4 puntos. Los demás parámetros están cerca de su óptimo, porque cambiarlos mueve menos de
 ±2 puntos.
 
+**Ronda de mus vieja (auditoría, 2026-11-02).** Tras cuatro «mus» y los descartes,
+`ronda_de_mus` seguía devolviendo la ronda anterior (jugada con las manos viejas) hasta que
+alguien hablaba en la nueva, y `reglas` y las creencias la aplicaban a las manos nuevas. Ahora
+los descartes empiezan una ronda vacía. Es una corrección, no una mejora: con los mismos
+repartos (2.000 partidas, `--seed 77`), `reglas` gana el 74,4 % a `basico` (antes 74,5 %) y el
+18,1 % a `inteligente` (igual). La red sigue viendo la ronda como al entrenarse
+(`como_v4=True`), así que el v4 juega exactamente igual; corregirlo para la red exige
+reentrenar.
+
 ## Evaluar bots: la arena
 
 ```bash
