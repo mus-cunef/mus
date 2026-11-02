@@ -122,6 +122,7 @@ def test_cada_falta_pierde_la_partida(clase, motivo):
     assert r.victorias_a == 0 and r.faltas_a == 4 and r.faltas_b == 0
     assert any(motivo in m for m in r.motivos_a), r.motivos_a
     assert "faltas" in str(r)
+    assert r.vacas_a == r.vacas_b == 0  # las partidas cortadas no suman vacas
 
 
 def test_sin_vigilancia_la_jugada_ilegal_sigue_parando_la_partida():

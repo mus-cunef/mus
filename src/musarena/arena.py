@@ -216,10 +216,11 @@ def _jugar(crear: dict[str, Fabrica], nombres: list[str], partidas: int, mejor_d
                 culpable = pareja(falta.asiento)
                 _juntar(motivos[lado[culpable]], [falta.motivo])
         if culpable is not None:  # pierde la pareja del bot que cometió la falta
+            # (aunque la partida ya estuviera decidida: un fallo en on_game_end también cuenta)
             ganadora = 1 - culpable
             faltas[lado[culpable]] += 1
         victorias_a += ganadora == pareja_a
-        if match is not None:
+        if culpable is None:  # las vacas, solo de las partidas jugadas hasta el final
             vacas_a += match.state.vacas[pareja_a]
             vacas_b += match.state.vacas[1 - pareja_a]
     return ResultadoArena(nombres[0], nombres[1], partidas, victorias_a, vacas_a, vacas_b,
