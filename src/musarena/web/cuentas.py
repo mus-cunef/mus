@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy import Engine, delete, insert, select
+from sqlalchemy.exc import IntegrityError
 
 from musarena.web.bd import sesiones, usuarios
 from musarena.web.mesas import ErrorMesa
@@ -113,13 +114,17 @@ class Cuentas:
         if clave.strip().lower() == nombre.lower():
             raise ErrorMesa("La contraseña no puede ser tu nombre de usuario")
         guardada = hash_clave(clave)
-        with self.motor.begin() as c:
-            if c.execute(select(usuarios.c.id).where(
-                    usuarios.c.nombre_clave == nombre.lower())).first():
-                raise ErrorMesa("Ese nombre de usuario ya existe", 409)
-            uid = c.execute(insert(usuarios).values(
-                nombre=nombre, nombre_clave=nombre.lower(), clave=guardada,
-                creado=self.reloj())).inserted_primary_key[0]
+        cogido = ErrorMesa("Ese nombre de usuario ya existe", 409)
+        try:
+            with self.motor.begin() as c:
+                if c.execute(select(usuarios.c.id).where(
+                        usuarios.c.nombre_clave == nombre.lower())).first():
+                    raise cogido
+                uid = c.execute(insert(usuarios).values(
+                    nombre=nombre, nombre_clave=nombre.lower(), clave=guardada,
+                    creado=self.reloj())).inserted_primary_key[0]
+        except IntegrityError:  # otro lo ha registrado justo a la vez (la columna es única)
+            raise cogido from None
         usuario = Usuario(uid, nombre)
         return usuario, self.abrir_sesion(usuario)
 

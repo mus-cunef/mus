@@ -93,12 +93,15 @@ class Privados:
     """Los torneos privados, guardados en la base de datos."""
 
     def __init__(self, motor: Engine, cuentas: Cuentas, mesas: GestorMesas, config: Config,
-                 reloj: Callable[[], float] = time.time) -> None:
+                 reloj: Callable[[], float] = time.time,
+                 rng: random.Random | None = None) -> None:
         self.motor = motor
         self.cuentas = cuentas
         self.mesas = mesas
         self.config = config
         self.reloj = reloj
+        #: De dónde salen las semillas de sorteos y partidos (los tests pasan uno con semilla).
+        self.rng = rng or random.SystemRandom()
         # Un cambio de estado de un torneo cada vez (sorteos, resultados, avances del cuadro).
         self._lock = threading.RLock()
         mesas.restaurador = self._restaurar_mesa
@@ -137,7 +140,7 @@ class Privados:
             c.execute(insert(torneos).values(
                 codigo=codigo, nombre=nombre, organizador=usuario.id, formato=f.a_dict(),
                 fecha_limite=float(fecha_limite), estado="inscripcion",
-                semilla=random.SystemRandom().randrange(2**31), creado=ahora))
+                semilla=self.rng.randrange(2**31), creado=ahora))
         return codigo
 
     def lista(self, usuario: Usuario) -> list[dict]:
@@ -310,7 +313,7 @@ class Privados:
                 valores.update(estado="jugando", mesa=secrets.token_urlsafe(9),
                                tokens={a: secrets.token_urlsafe(16) for a in range(4)},
                                # < 2**31: la columna es un entero de 32 bits en PostgreSQL
-                               acciones=[], semilla=random.SystemRandom().randrange(2**31),
+                               acciones=[], semilla=self.rng.randrange(2**31),
                                actualizado=self.reloj())
             c.execute(update(partidos).where(partidos.c.id == p.id).values(**valores))
 
@@ -377,15 +380,21 @@ class Privados:
     # --- Sorteo y avance ------------------------------------------------------------------
 
     def _al_dia(self, codigo: str) -> None:
-        """Si ha pasado la fecha límite, cierra la inscripción y sortea."""
+        """Si ha pasado la fecha límite, cierra la inscripción y sortea; con menos de dos
+        parejas no se puede jugar y el torneo se cancela (si no, se quedaría abierto sin que
+        nadie se pudiera inscribir)."""
         with self.motor.connect() as c:
             t = c.execute(select(torneos).where(torneos.c.codigo == codigo)).first()
         if t is None or t.estado != "inscripcion" or self.reloj() < t.fecha_limite:
             return
         with self._lock, self.motor.begin() as c:
             t = self._torneo(c, codigo)
-            if t.estado == "inscripcion" and self._confirmadas(c, t.id) >= 2:
+            if t.estado != "inscripcion":
+                return
+            if self._confirmadas(c, t.id) >= 2:
                 self._sortear(c, t)
+            else:
+                c.execute(update(torneos).where(torneos.c.id == t.id).values(estado="cancelado"))
 
     def _sortear(self, c, t) -> None:
         c.execute(delete(parejas).where(parejas.c.torneo == t.id, parejas.c.confirmada.is_(False)))
@@ -450,18 +459,20 @@ class Privados:
         if t.estado != "en_curso":
             return  # cancelado (o ya terminado): nada avanza
         f = Formato.desde_dict(t.resuelto)
-        todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)).all()
+        todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)
+                         .order_by(partidos.c.id)).all()
         if f.tipo == "grupos" and not any(p.fase == "cuadro" for p in todos):
             de_grupos = [p for p in todos if p.fase == "grupos"]
             if de_grupos and all(p.estado == "terminado" for p in de_grupos):
                 grupo_de = dict(c.execute(select(parejas.c.id, parejas.c.grupo).where(
-                    parejas.c.torneo == t.id)).all())
+                    parejas.c.torneo == t.id).order_by(parejas.c.id)).all())
                 tablas = [clasificar([p for p, g in grupo_de.items() if g == n],
                                      [self._resultado(p) for p in de_grupos if p.grupo == n])
                           for n in sorted(set(grupo_de.values()))]
                 cabezas = cabezas_tras_grupos(tablas, f.pasan_por_grupo)
                 self._crear_cuadro(c, t, f, [p for p, _ in cabezas], grupo_de)
-                todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)).all()
+                todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)
+                                  .order_by(partidos.c.id)).all()
         cuadro = {(p.ronda, p.posicion): p for p in todos if p.fase == "cuadro"}
         if cuadro:
             n_rondas = max(r for r, _ in cuadro) + 1
@@ -485,12 +496,13 @@ class Privados:
                     elif a is None:
                         valores.update(estado="terminado", pase=True)
                     c.execute(update(partidos).where(partidos.c.id == tercero.id).values(**valores))
-        todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)).all()
+        todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)
+                         .order_by(partidos.c.id)).all()
         if todos and all(p.estado == "terminado" for p in todos):
             campeon = None
             if f.tipo == "liga":
                 ids = [fila.id for fila in c.execute(
-                    select(parejas.c.id).where(parejas.c.torneo == t.id))]
+                    select(parejas.c.id).where(parejas.c.torneo == t.id).order_by(parejas.c.id))]
                 campeon = clasificar(ids, [self._resultado(p) for p in todos])[0].pareja
             else:
                 final = next((p for p in todos if p.fase == "cuadro"
@@ -575,7 +587,7 @@ class Privados:
         with self.motor.connect() as c:
             t = self._torneo(c, codigo)
             filas = c.execute(select(parejas).where(parejas.c.torneo == t.id)
-                              .order_by(parejas.c.creada)).all()
+                              .order_by(parejas.c.creada, parejas.c.id)).all()
             todos = c.execute(select(partidos).where(partidos.c.torneo == t.id)
                               .order_by(partidos.c.id)).all()
             ids_usuarios = {t.organizador} | {u for p in filas for u in (p.jugador1, p.jugador2)}

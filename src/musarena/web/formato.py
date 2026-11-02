@@ -223,7 +223,9 @@ def clasificar(parejas: Sequence[Hashable], resultados: Sequence[Resultado]) -> 
     """Tabla de un grupo o de una liga, de primera a última.
 
     Desempates, por orden: partidos ganados, diferencia de vacas, diferencia de tantos, vacas
-    a favor y, si aún empatan, el partido entre ellas (si lo jugaron).
+    a favor y, si aún empatan dos, el partido entre ellas (si lo jugaron). Un empate total que
+    eso no resuelve (por ejemplo, tres que se ganan en círculo) mantiene el orden de
+    ``parejas``: el de inscripción, así que el resultado no cambia de una consulta a otra.
     """
     filas = {p: Fila(p) for p in parejas}
     ganador_entre: dict[frozenset, Hashable] = {}
