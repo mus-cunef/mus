@@ -142,7 +142,9 @@ def test_el_bot_inteligente_con_un_modelo_por_ruta(tmp_path):
 
 def test_la_arena_en_paralelo():
     r = enfrentar("random", "basico", partidas=9, seed=1, procesos=2)
-    assert r.partidas == 9 and 0 <= r.victorias_a <= 9
+    assert r.partidas == 9
+    # Otro reparto que en un solo proceso (cada trozo con su semilla), pero reproducible.
+    assert r == enfrentar("random", "basico", partidas=9, seed=1, procesos=2)
 
 
 def test_un_modelo_incompatible_se_detecta():

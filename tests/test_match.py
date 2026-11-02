@@ -92,9 +92,10 @@ def test_un_bot_tramposo_no_corrompe_la_partida():
 
     match = Match([Tramposo() for _ in range(4)], seed=1)  # hable quien hable primero
     antes = match.state
+    historial, turno = list(antes.historial), antes.turno
     with pytest.raises(IllegalActionError):
         match.step()
-    assert match.state is antes
+    assert match.state is antes and antes.historial == historial and antes.turno == turno
 
 
 def test_numero_de_jugadores_y_formato():

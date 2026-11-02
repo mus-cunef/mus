@@ -45,8 +45,10 @@ def _jugar(cliente, mesa, tokens, rng, hasta_manos=None):
         if token is None:
             continue  # le toca a un bot: juega al volver a mirar
         v = cliente.get(f"/api/mesas/{mesa}", headers={"X-Token": token}).json()
-        cliente.post(f"/api/mesas/{mesa}/jugar", headers={"X-Token": token},
-                     json={"accion": rng.choice(v["acciones"])["id"], "version": v["version"]})
+        r = cliente.post(f"/api/mesas/{mesa}/jugar", headers={"X-Token": token},
+                         json={"accion": rng.choice(v["acciones"])["id"],
+                               "version": v["version"]})
+        assert r.status_code == 200, r.text
     raise AssertionError("La partida no ha terminado")
 
 

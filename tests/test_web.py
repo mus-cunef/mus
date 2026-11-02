@@ -150,22 +150,20 @@ def test_partida_entera_por_la_api_sin_ver_cartas_ajenas(entorno):
 
 def test_jugadas_rechazadas(entorno):
     cliente, *_ = entorno
-    datos = _crear(cliente, ("humano", "random", "humano", "random"))
+    datos = _crear(cliente, ("humano",) * 4)  # siempre le toca a un humano
     mesa_id = datos["mesa"]
-    t0, t2 = datos["asientos"][0]["token"], datos["asientos"][2]["token"]
-    v = _ver(cliente, mesa_id, t0).json()
-    a_quien = v["turno"]
-    token_turno, token_otro = (t0, t2) if a_quien == 0 else (t2, t0)
+    tokens = [a["token"] for a in datos["asientos"]]
+    a_quien = _ver(cliente, mesa_id, tokens[0]).json()["turno"]
+    token_turno, token_otro = tokens[a_quien], tokens[(a_quien + 1) % 4]
     version = _ver(cliente, mesa_id, token_turno).json()["version"]
     jugar = lambda token, accion, version: cliente.post(  # noqa: E731
         f"/api/mesas/{mesa_id}/jugar", headers={"X-Token": token},
         json={"accion": accion, "version": version})
-    if a_quien in (0, 2):
-        assert jugar(token_otro, 0, version).status_code == 409  # no es su turno
-        assert jugar(token_turno, 99, version).status_code == 400  # no existe esa jugada
-        assert jugar(token_turno, 0, version + 7).status_code == 409  # versión vieja
-        assert jugar(token_turno, 0, version).status_code == 200
-        assert jugar(token_turno, 0, version).status_code == 409  # el doble clic no cuenta
+    assert jugar(token_otro, 0, version).status_code == 409  # no es su turno
+    assert jugar(token_turno, 99, version).status_code == 400  # no existe esa jugada
+    assert jugar(token_turno, 0, version + 7).status_code == 409  # versión vieja
+    assert jugar(token_turno, 0, version).status_code == 200
+    assert jugar(token_turno, 0, version).status_code == 409  # el doble clic no cuenta
     assert jugar("", 0, version).status_code == 403
 
 
