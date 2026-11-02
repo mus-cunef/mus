@@ -260,10 +260,11 @@ const Mesa = {
       const v = await api("GET", `/api/mesas/${this.id}`, undefined, this.token);
       this.fallos = 0;
       this.pintar(v);
+      this.aviso("", true);  // vuelve la conexión: se quita el aviso
     } catch (e) {
       this.fallos++;
       if (e.codigo === 403 || e.codigo === 404) { this.pintarError(e.message); return; }
-      this.aviso(this.fallos > 2 ? "Sin conexión con el servidor; reintentando…" : "");
+      if (this.fallos > 2) this.aviso("Sin conexión con el servidor; reintentando…", true);
     }
     // Mientras juegan los bots se pregunta a menudo; si espera al humano, mucho menos.
     const v = this.v;
@@ -280,6 +281,10 @@ const Mesa = {
       this.seleccion.clear();
       this.pintar(v);
     } catch (e) {
+      // La jugada no ha llegado: se vuelven a poner los botones (si no, la mesa se quedaba
+      // bloqueada hasta recargar, porque la versión no cambia y no se repinta).
+      this.enviando = false;
+      this.pintarAcciones();
       this.aviso(e.message);
     } finally {
       this.enviando = false;
@@ -522,10 +527,18 @@ const Mesa = {
     $("button", caja).focus();
   },
 
-  aviso(texto) {
-    if (!texto) return;
-    const caja = $("#acciones");
-    caja.prepend(el("span", { class: "error" }, texto));
+  // Un solo aviso a la vez (no se acumulan). El de conexión se quita al volver la conexión;
+  // los demás, al repintar las acciones.
+  aviso(texto, conexion = false) {
+    let nodo = $("#aviso-mesa");
+    if (!texto) {
+      if (nodo && (!conexion || nodo.dataset.conexion)) nodo.remove();
+      return;
+    }
+    if (!nodo) nodo = el("span", { id: "aviso-mesa", class: "error" });
+    nodo.textContent = texto;
+    if (conexion) nodo.dataset.conexion = "1"; else delete nodo.dataset.conexion;
+    $("#acciones").prepend(nodo);
   },
 };
 
@@ -852,9 +865,14 @@ const Privado = {
         el("a", { class: "boton principal", href: "#/torneos" }, "Ir a tus torneos"));
       return;
     }
-    // Mientras está vivo, se mira cada pocos segundos (inscripciones, resultados, cuadro); si
-    // estoy esperando a que empiece mi partido, más a menudo, para entrar enseguida.
-    if (ruta().nombre === "t" && ["inscripcion", "en_curso"].includes(this.v.estado)) {
+    this.programar();
+  },
+
+  // Mientras está vivo, se mira cada pocos segundos (inscripciones, resultados, cuadro); si
+  // estoy esperando a que empiece mi partido, más a menudo, para entrar enseguida.
+  programar() {
+    this.parar();
+    if (this.v && ruta().nombre === "t" && ["inscripcion", "en_curso"].includes(this.v.estado)) {
       this.temporizador = setTimeout(() => this.refrescar(), this.esperando.size ? 1500 : 5000);
     }
   },
@@ -1066,7 +1084,7 @@ const Privado = {
   async empezar(p) {
     this.esperando.add(p.id);
     await this.accion("POST", `/partidos/${p.id}/listo`, {});
-    this.refrescar();  // vuelve a programar las consultas, ahora más seguidas
+    this.programar();  // consultas más seguidas (la respuesta ya ha pintado: no hace falta otra)
   },
 
   async jugar(p) {
@@ -1075,6 +1093,8 @@ const Privado = {
       try { sessionStorage.setItem(`volver:${d.mesa}`, `#/t/${this.codigo}`); } catch { /* sin almacenamiento */ }
       location.hash = `#/mesa/${d.mesa}/${d.token}`;
     } catch (e) {
+      // Un fallo pasajero (red, servidor): se vuelve a intentar en la siguiente consulta.
+      if (!e.codigo || e.codigo >= 500) this.esperando.add(p.id);
       this.aviso(e.message);
     }
   },

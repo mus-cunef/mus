@@ -188,7 +188,9 @@ Principios:
   con código. Las parejas se inscriben con la cuenta del compañero, que acepta. Cada partido
   empieza cuando **los cuatro le han dado a «Empezar»** (entran solos a la mesa) y se juega en
   la mesa normal con las cuatro cuentas; **cada jugada se guarda en la base de datos**
-  y la mesa se reconstruye tras un reinicio. En Render hace falta una base PostgreSQL externa
+  y la mesa se reconstruye tras un reinicio. Al cerrar un partido (ganador o cancelar), la mesa
+  se quita de memoria **después** de guardar el cambio: si no, una consulta justo entre medias
+  la reconstruía desde la base de datos antigua. En Render hace falta una base PostgreSQL externa
   (`MUS_BD`, Neon gratis), porque su disco se borra al reiniciar.
 - **Partidas de la web para entrenar**: el bot no aprende en directo (el modelo está
   congelado). Las partidas con humanos de la web se guardan en la base de datos (tabla
@@ -237,9 +239,15 @@ Principios:
    `millosolo-mus` (https://millosolo-mus.onrender.com), con la base PostgreSQL de Neon en
    `MUS_BD` y el organizador en `MUS_ORGANIZADORES` (lo configuró Pablo; la cadena de Neon es
    un secreto y solo está en Render). El servicio antiguo `mus-81o1` sobra.
-4. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
+4. **Auditoría externa (2026-11-02):** informe con 50 hallazgos y un plan en 5 fases (lo tiene
+   Pablo). Hechas la fase 1 (ningún bot rompe el torneo) y la 2 (torneos privados y mesa
+   fiables: cancelar de verdad, invitaciones que no bloquean, botones que no se quedan
+   bloqueados, guardado que se reintenta, mesas que no «resucitan» al cerrarlas). Quedan la 3
+   (filtración de `mis_descartes` tras rebarajar, envites que la red tiene prohibidos), la 4
+   (seguridad de la web pública) y la 5 (CI, limpieza y documentación).
+5. **Entrega y defensa:** limpiar el README (quitar los "próximamente"), versión 1.0 etiquetada,
    demo preparada (partida contra el bot, torneo, la historia del cazador) y repartir la defensa.
-5. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
+6. **Mejoras del bot para más adelante** (opcionales): partidas humanas (imitación con
    `datos.de_partidas`, tabla de descartes humana, medir contra personas), más ciclos de
    cazadores, búsqueda al decidir y una red más grande. Las tareas en segundo plano se cortan
    pasada aproximadamente una hora: entrenar en tramos de 150 iteraciones.
