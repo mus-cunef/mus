@@ -117,7 +117,7 @@ def test_red_guardar_y_cargar(tmp_path):
 
 
 def test_el_bot_inteligente_juega_partidas_legales():
-    for temperatura in (0.0, 1.0):
+    for temperatura in (0.0, 1.0, 0.001):  # muy baja: p ** 1000 no puede quedarse en 0
         mesa = [crear_jugador("inteligente", seed=i, temperatura=temperatura) for i in range(2)]
         mesa += [crear_jugador("reglas", seed=9), crear_jugador("random", seed=9)]
         mesa = [mesa[0], mesa[2], mesa[1], mesa[3]]

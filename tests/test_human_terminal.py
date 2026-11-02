@@ -43,9 +43,9 @@ def test_elegir_por_numero():
 
 def test_entrada_no_valida_vuelve_a_preguntar():
     s = nueva_partida(mano=0, seed=1)
-    accion, salida = _elegir(s, ["", "hola", "0", "-1", "9", "2"])
+    accion, salida = _elegir(s, ["", "hola", "0", "-1", "9", "²", "2"])  # «²» no es un número
     assert accion == NoHayMus()
-    assert sum("Escribe un número" in linea for linea in salida) == 5
+    assert sum("Escribe un número" in linea for linea in salida) == 6
 
 
 def _en_grande():
@@ -199,6 +199,15 @@ def test_mus_play_solo_bots(capsys):
     salida = capsys.readouterr().out
     assert "Fin de la mano 1" in salida
     assert "Resultado: pareja" in salida
+
+
+def test_mus_play_respeta_las_mayusculas_de_un_archivo_de_bot(tmp_path, capsys):
+    """En Linux (la CI) bots/MiBot.py y bots/mibot.py son archivos distintos."""
+    bot = tmp_path / "MiBot.py"
+    bot.write_text("from musarena.players import RandomBot\n\n"
+                   "class MiBot(RandomBot):\n    tipo = 'mi_bot'\n", encoding="utf-8")
+    assert main(["--jugadores", f"{bot.as_posix()},RANDOM,random,random", "--mejor-de", "3",
+                 "--seed", "1"]) == 0
 
 
 def test_mus_play_rechaza_jugadores_mal_escritos():

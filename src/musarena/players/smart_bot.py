@@ -70,7 +70,10 @@ class SmartBot(Bot):
             # En float64 y como números de Python: con float32, numpy redondea el número sorteado
             # al compararlo con la suma acumulada y, muy de vez en cuando, el sorteo caía en una
             # acción con probabilidad 0 (ilegal).
-            q = np.where(mascara, p.astype(np.float64) ** (1 / self.temperatura), 0.0)
+            # Dividiendo antes por la mayor: con una temperatura muy baja, p ** (1 / t) se
+            # quedaba en 0 para todas y no había nada que sortear.
+            p64 = p.astype(np.float64)
+            q = np.where(mascara, (p64 / p64[mascara].max()) ** (1 / self.temperatura), 0.0)
             i = int(self.rng.choices(range(len(q)), weights=q.tolist())[0])
         else:
             i = int(np.argmax(p))
