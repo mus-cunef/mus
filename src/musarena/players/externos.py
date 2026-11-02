@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import inspect
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -49,7 +50,12 @@ def cargar_clase(tipo: str) -> type[Player]:
     modulo_nombre = "musarena_bot_" + hashlib.sha1(str(ruta.resolve()).encode()).hexdigest()[:10]
     spec = importlib.util.spec_from_file_location(modulo_nombre, ruta)
     modulo = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(modulo)
+    sys.modules[modulo_nombre] = modulo  # @dataclass y pickle buscan el módulo ahí
+    try:
+        spec.loader.exec_module(modulo)
+    except BaseException:
+        del sys.modules[modulo_nombre]
+        raise
     clases = [c for _, c in inspect.getmembers(modulo, inspect.isclass)
               if issubclass(c, Player) and c not in (Player, Bot) and not inspect.isabstract(c)
               and c.__module__ == modulo_nombre]

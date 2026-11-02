@@ -47,7 +47,9 @@ def choose_action(self, observation, legal_actions):
   y `NoQuiero`. Tu bot **tiene que devolver una de ellas**.
 
 Si devuelve otra cosa, lanza un error o tarda más de 5 segundos, **pierde la partida**, pero el
-torneo sigue.
+torneo sigue. En el torneo cada pareja de bots juega en **su propio proceso**: tu bot recibe
+copias de la observación y de las jugadas legales (cambiarlas no cambia nada), y si se cuelga
+ese proceso se cierra sin molestar a los demás.
 
 ## 3. Escribe el bot
 

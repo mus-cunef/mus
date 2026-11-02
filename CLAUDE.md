@@ -88,7 +88,8 @@ src/musarena/
   match.py      Match: orquesta una partida (mejor de 3 o de 5 vacas) con 4 Player;
                 `al_decidir` recibe cada Decision (para grabar partidas y entrenar)
   arena.py      enfrenta dos bots en muchas partidas con repartos duplicados (`mus-arena`)
-  vigilancia.py un bot que falla, se cuelga o juega ilegal pierde la partida (no rompe el torneo)
+  vigilancia.py un bot que falla, se cuelga o juega ilegal pierde la partida (no rompe el torneo);
+                cada pareja de bots juega en un proceso propio que se mata si se cuelga
   torneo.py     torneo todos contra todos (`mus-torneo`): clasificación por Elo (Bradley-Terry)
                 y %; jugar_torneo(..., al_progreso=) y ResultadoTorneo.a_dict() para la web
   grabacion.py  grabar partidas (semilla + acciones, JSON en partidas/) y reproducirlas para
@@ -167,7 +168,13 @@ Principios:
   sirve para la terminal, para GitHub Actions (`.github/workflows/documentacion.yml`, que juega
   el torneo y publica la clasificación en la documentación) y para la **web** (apartado propio).
   Cada bot juega vigilado: un fallo, un cuelgue (5 s por jugada) o una jugada ilegal pierde
-  esa partida y queda como falta.
+  esa partida y queda como falta. **Cada pareja de bots juega en su propio proceso** (no en un
+  hilo): un bot colgado se mata (antes seguía gastando CPU y hacía perder por tiempo a los demás)
+  y nada de lo que haga (`SystemExit`, `os._exit`, cambiar la lista de legales) rompe el torneo.
+  El motor aplica siempre **su** acción legal, nunca el objeto del bot (`Envido(2.0)` rompía el
+  torneo). Cuesta algo de velocidad: el torneo de 840 partidas tarda 18 s en vez de 8 s con 20
+  núcleos (solo se mandan las manos jugadas nuevas en cada jugada; mandarlas todas lo hacía el
+  doble de lento) y cada proceso ocupa unos 35 MB.
 - **Web:** FastAPI y una página sin herramientas de compilación, **pensada para internet desde
   el principio**: solo se manda la `Observation` de cada asiento, códigos secretos detrás del
   `#`, versión en cada jugada, chat como texto y límites (modo `MUS_PUBLICO=1`). Varios humanos
