@@ -69,14 +69,19 @@ def cargar_clase(tipo: str) -> type[Player]:
 
 
 def crear_externo(tipo: str, seed: int | None = None, nombre: str | None = None) -> Player:
-    """Crea el bot del archivo ``tipo`` con su semilla (y su nombre, si la clase lo acepta)."""
+    """Crea el bot del archivo ``tipo`` con su semilla (y su nombre, si la clase lo acepta).
+
+    Lo que acepta se mira en la firma de la clase, sin probar a ver qué falla: un ``TypeError``
+    dentro del ``__init__`` del bot es un error suyo, y no debe acabar creándolo sin semilla.
+    """
     clase = cargar_clase(tipo)
-    for argumentos in ({"nombre": nombre, "seed": seed}, {"seed": seed}, {}):
-        try:
-            return clase(**argumentos)
-        except TypeError:
-            continue
-    return clase()
+    try:
+        parametros = inspect.signature(clase).parameters
+    except (TypeError, ValueError):
+        parametros = {}
+    acepta_todo = any(p.kind is p.VAR_KEYWORD for p in parametros.values())
+    return clase(**{k: v for k, v in (("nombre", nombre), ("seed", seed))
+                    if acepta_todo or k in parametros})
 
 
 def nombre_externo(tipo: str) -> str:

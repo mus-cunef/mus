@@ -88,7 +88,11 @@ def nueva_partida(
     ese jugador es la mano desde el principio y no hay mano corrida (útil para preparar
     posiciones concretas en los tests), salvo que se pida con ``corrida=True``.
     """
-    generador = rng if rng is not None else random.Random(seed)
+    # Una copia del generador que se pasa: si no, quien lo pasó y la partida compartirían el
+    # mismo y usarlo fuera cambiaría los repartos de la partida.
+    generador = random.Random(seed)
+    if rng is not None:
+        generador.setstate(rng.getstate())
     if corrida is None:
         corrida = mano is None
     if mano is None:
